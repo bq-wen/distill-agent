@@ -13,11 +13,11 @@ follow in later increments.
 
 ## Development
 
-Use Python 3.10 or newer. Install development dependencies in an isolated
+Use Python 3.12. Install development dependencies in an isolated
 environment, then run:
 
 ```bash
-python3.10 -m pytest
+python3.12 -m pytest
 ```
 
 The application intentionally has no model configuration or real knowledge

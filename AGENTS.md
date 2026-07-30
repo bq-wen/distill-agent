@@ -9,5 +9,5 @@ submodule. Do not edit framework source from this repository.
   raw Markdown paths, private content, or SQLite rows from API handlers.
 - Knowledge documents may include private content, but public citations must be
   assembled solely from approved public metadata.
-- Use Python 3.10 or newer. Run tests with `python3.10 -m pytest`.
+- Use Python 3.12. Run tests with `python3.12 -m pytest`.
 - Keep model credentials in environment files only; never commit real keys.
