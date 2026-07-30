@@ -37,7 +37,12 @@ PERSONA_PROMPT = """你是基于本人授权资料构建的 AI 数字分身，�
 保密信息，说明该信息不在公开资料范围内。检索工具只读且只能用于授权个人资料。"""
 
 
-def build_personal_graph(knowledge: PersonalKnowledgeService, chat_model: ChatModel) -> tuple[Graph, list]:
+def build_personal_graph(
+    knowledge: PersonalKnowledgeService,
+    chat_model: ChatModel,
+    *,
+    conversation_store=None,
+) -> tuple[Graph, list]:
     """Build the minimal guarded ReAct graph and return tools for citation collection."""
 
     registry = ToolRegistry()
@@ -49,7 +54,7 @@ def build_personal_graph(knowledge: PersonalKnowledgeService, chat_model: ChatMo
         registry,
         chat_model,
         InMemoryArtifactStore(),
-        ContextBuilder(InMemoryConversationStore(), system_prompt=PERSONA_PROMPT),
+        ContextBuilder(conversation_store or InMemoryConversationStore(), system_prompt=PERSONA_PROMPT),
     )
     router = AgentRouterNode()
     guard = ToolGuard(CapabilityPolicy(), RiskPolicy(ExecutionMode.UNATTENDED))

@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 from personal_agent.application.service import PersonalAgentService
+from personal_agent.application.conversations import SQLiteConversationStore
 from personal_agent.knowledge.documents import parse_markdown_document
 from personal_agent.knowledge.embedding import HashEmbeddingProvider
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
@@ -80,3 +81,26 @@ def test_personal_agent_tells_model_when_personal_evidence_is_missing(tmp_path: 
     )
 
     assert "个人事实必须说明资料未覆盖" in model.messages[0][0][-1].content
+
+
+def test_personal_agent_reuses_persisted_tab_conversation_history(tmp_path: Path) -> None:
+    conversation_store = SQLiteConversationStore(tmp_path / "conversations.db")
+    model = ScriptedChatModel([
+        ModelResponse(text="第一轮回答"),
+        ModelResponse(text="第二轮回答"),
+    ])
+    service = PersonalAgentService(
+        _knowledge_service(tmp_path), model, conversation_store=conversation_store
+    )
+    try:
+        asyncio.run(service.answer("介绍 WenGraph", conversation_id="tab-1"))
+        asyncio.run(service.answer("它如何控制工具？", conversation_id="tab-1"))
+
+        second_messages = model.messages[1][0]
+        assert any(message.content == "介绍 WenGraph" for message in second_messages)
+        assert any(message.content == "第一轮回答" for message in second_messages)
+        assert [event.role for event in conversation_store.list_all("tab-1")] == [
+            "user", "assistant", "user", "assistant"
+        ]
+    finally:
+        conversation_store.close()

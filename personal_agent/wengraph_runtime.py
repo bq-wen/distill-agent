@@ -36,12 +36,12 @@ from wengraph import (  # noqa: E402
     ToolSpec,
 )
 from llm import ChatModel
-from memory import ContextBuilder, InMemoryArtifactStore, InMemoryConversationStore
+from memory import ContextBuilder, ConversationEvent, ConversationStore, InMemoryArtifactStore, InMemoryConversationStore
 from tools import ToolRequest
 
 __all__ = [
     "AgentFinishNode", "AgentRouterNode", "Capability", "CapabilityPolicy", "ChatModel",
-    "ContextBuilder", "Edge", "ExecutionMode", "Graph", "GraphExecutor",
+    "ContextBuilder", "ConversationEvent", "ConversationStore", "Edge", "ExecutionMode", "Graph", "GraphExecutor",
     "InMemoryArtifactStore", "InMemoryConversationStore", "LLMNode", "PolicyDecision",
     "PolicyRouterNode", "RiskLevel", "RiskPolicy", "RunStatus", "State", "StateField", "Tool",
     "ToolEffect", "ToolGuard", "ToolGuardNode", "ToolNode", "ToolRegistry", "ToolRequest",

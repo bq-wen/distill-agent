@@ -13,6 +13,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from personal_agent.application.contracts import AgentAnswer
+from personal_agent.application.conversations import SQLiteConversationStore
 
 
 def utc_now() -> datetime:
@@ -214,12 +215,14 @@ class PersonalRunScheduler:
         worker_count: int = 2,
         max_queue_size: int = 20,
         ttl: timedelta = timedelta(hours=24),
+        conversation_store: SQLiteConversationStore | None = None,
     ) -> None:
         if worker_count < 1 or max_queue_size < 1 or ttl <= timedelta():
             raise ValueError("worker_count、max_queue_size 和 ttl 必须为正数")
         self.store = store
         self.answerer = answerer
         self.ttl = ttl
+        self.conversation_store = conversation_store
         self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=max_queue_size)
         self._worker_count = worker_count
         self._workers: list[asyncio.Task] = []
@@ -230,6 +233,8 @@ class PersonalRunScheduler:
         if self._workers:
             return
         self.store.expire_before(utc_now() - self.ttl)
+        if self.conversation_store is not None:
+            self.conversation_store.expire_before(utc_now() - self.ttl)
         self.store.mark_running_as_interrupted()
         self._fill_queue_from_store()
         self._workers = [asyncio.create_task(self._worker(), name=f"personal-agent-worker-{index}") for index in range(self._worker_count)]
