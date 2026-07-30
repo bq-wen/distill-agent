@@ -17,6 +17,18 @@ def test_health_endpoint_returns_the_stable_contract() -> None:
     assert response.json() == {"status": "ok", "service": "personal-agent"}
 
 
+def test_app_can_serve_built_frontend_entry(tmp_path: Path) -> None:
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "index.html").write_text("<main>Personal Agent</main>", encoding="utf-8")
+
+    with TestClient(create_app(static_directory=frontend)) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Personal Agent" in response.text
+
+
 class ImmediateAnswerer:
     async def answer(self, question: str, *, conversation_id: str) -> AgentAnswer:
         return AgentAnswer(text=f"answer: {question}")
