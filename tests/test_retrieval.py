@@ -6,6 +6,11 @@ from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.knowledge.store import KnowledgeStore
 
 
+class FailingEmbeddingProvider(HashEmbeddingProvider):
+    def embed(self, text: str) -> list[float]:
+        raise AssertionError("空知识库不应加载或调用 embedding provider")
+
+
 def _write_document(path: Path, *, content: str) -> None:
     path.write_text(
         f"""---
@@ -71,5 +76,15 @@ def test_reindex_replaces_old_chunks_and_fts_entries(tmp_path: Path) -> None:
         matches = service.search_keywords("current_token")
         assert len(matches) == 1
         assert matches[0].chunk.content.endswith("current_token")
+    finally:
+        store.close()
+
+
+def test_empty_knowledge_store_skips_embedding_query(tmp_path: Path) -> None:
+    store = KnowledgeStore(tmp_path / "knowledge.db")
+    try:
+        service = PersonalKnowledgeService(store, FailingEmbeddingProvider())
+
+        assert service.search_semantic("介绍 WenGraph") == []
     finally:
         store.close()

@@ -47,10 +47,10 @@ class PersonalKnowledgeService:
         return self.store.search_keywords(query, limit=_validated_limit(limit))
 
     def search_semantic(self, query: str, *, limit: int = 5) -> list[RetrievalMatch]:
-        query_vector = self.embedding_provider.embed(query)
         candidates = self.store.semantic_candidates()
         if not candidates:
             return []
+        query_vector = self.embedding_provider.embed(query)
         dimensions = len(query_vector)
         if any(len(chunk.embedding) != dimensions for chunk, _ in candidates):
             raise RuntimeError("索引向量维度与当前 Embedding 模型不一致，请重新建立索引")
