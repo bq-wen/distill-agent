@@ -1,0 +1,3 @@
+[submodule "vendor/wengraph"]
+	path = vendor/wengraph
+	url = ../../project-wengraph/wengraph

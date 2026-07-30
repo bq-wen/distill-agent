@@ -1,0 +1,56 @@
+"""Typed application contracts shared by knowledge, service, and API layers."""
+
+from enum import Enum
+
+from pydantic import AnyHttpUrl, BaseModel, Field, model_validator
+
+
+class KnowledgeVisibility(str, Enum):
+    """Visibility of the source document itself, not its public citation."""
+
+    PRIVATE = "private"
+    PUBLIC = "public"
+
+
+class SourceMetadata(BaseModel):
+    """A stable source record with the only metadata safe to expose to visitors."""
+
+    source_id: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    project: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    visibility: KnowledgeVisibility
+    public_summary: str | None = None
+    public_url: AnyHttpUrl | None = None
+
+    @model_validator(mode="after")
+    def validate_public_metadata(self) -> "SourceMetadata":
+        if self.visibility is KnowledgeVisibility.PUBLIC and not self.public_summary:
+            raise ValueError("公开资料必须提供 public_summary")
+        return self
+
+
+class PublicCitation(BaseModel):
+    """Citation shape returned to web visitors; raw document data is excluded."""
+
+    source_id: str
+    project: str
+    title: str
+    summary: str
+    url: AnyHttpUrl | None = None
+
+    @classmethod
+    def from_source(cls, source: SourceMetadata) -> "PublicCitation":
+        return cls(
+            source_id=source.source_id,
+            project=source.project,
+            title=source.title,
+            summary=source.public_summary or "该资料仅提供已审核的公开引用。",
+            url=source.public_url,
+        )
+
+
+class HealthResponse(BaseModel):
+    """Stable health response for local development and container probes."""
+
+    status: str = "ok"
+    service: str = "personal-agent"
