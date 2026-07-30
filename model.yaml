@@ -1,0 +1,7 @@
+# OpenAI-compatible model configuration example.
+# Keep real credentials in .env; this file is safe to commit and share.
+openai_compatible:
+  base_url: https://api.example.com/v1
+  api_key: replace-with-environment-secret
+  model: your-model-name
+  timeout: 60
