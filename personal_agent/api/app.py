@@ -1,6 +1,7 @@
 """FastAPI transport boundary for asynchronous Personal Agent Runs."""
 
 from contextlib import asynccontextmanager
+from collections.abc import Awaitable, Callable
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, status
@@ -29,6 +30,7 @@ def create_app(
     *,
     scheduler: PersonalRunScheduler | None = None,
     run_store: PersonalRunStore | None = None,
+    close_resources: Callable[[], Awaitable[None]] | None = None,
 ) -> FastAPI:
     """Create an HTTP app around injected scheduling dependencies."""
 
@@ -44,6 +46,8 @@ def create_app(
         finally:
             if scheduler is not None:
                 await scheduler.stop()
+            if close_resources is not None:
+                await close_resources()
 
     app = FastAPI(title="Personal Agent API", version="0.1.0", lifespan=lifespan)
 

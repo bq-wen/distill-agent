@@ -35,7 +35,7 @@ from wengraph import (  # noqa: E402
     ToolRegistry,
     ToolSpec,
 )
-from llm import ChatModel
+from llm import ChatModel, OpenAIChatConfig, OpenAIChatModel
 from memory import ContextBuilder, ConversationEvent, ConversationStore, InMemoryArtifactStore, InMemoryConversationStore
 from tools import ToolRequest
 
@@ -44,6 +44,6 @@ __all__ = [
     "ContextBuilder", "ConversationEvent", "ConversationStore", "Edge", "ExecutionMode", "Graph", "GraphExecutor",
     "InMemoryArtifactStore", "InMemoryConversationStore", "LLMNode", "PolicyDecision",
     "PolicyRouterNode", "RiskLevel", "RiskPolicy", "RunStatus", "State", "StateField", "Tool",
-    "ToolEffect", "ToolGuard", "ToolGuardNode", "ToolNode", "ToolRegistry", "ToolRequest",
+    "OpenAIChatConfig", "OpenAIChatModel", "ToolEffect", "ToolGuard", "ToolGuardNode", "ToolNode", "ToolRegistry", "ToolRequest",
     "ToolSpec",
 ]
