@@ -1,6 +1,7 @@
 """Production dependency composition. HTTP handlers remain in ``app.py``."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import FastAPI
 
@@ -63,8 +64,10 @@ def create_production_app(settings: ApplicationSettings | None = None) -> FastAP
     """Uvicorn factory. Run with ``--factory`` so secrets are read at startup."""
 
     resources = build_resources(settings or ApplicationSettings.from_environment())
+    static_directory = Path(__file__).parents[2] / "frontend_dist"
     return create_app(
         scheduler=resources.scheduler,
         run_store=resources.run_store,
         close_resources=resources.close,
+        static_directory=static_directory if static_directory.is_dir() else None,
     )

@@ -1,0 +1,18 @@
+services:
+  personal-agent:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      PERSONAL_AGENT_DATA_DIR: /app/data
+      HF_HOME: /app/models
+    volumes:
+      - ./data:/app/data
+      - ./knowledge:/app/knowledge:ro
+      - model-cache:/app/models
+    restart: unless-stopped
+
+volumes:
+  model-cache:

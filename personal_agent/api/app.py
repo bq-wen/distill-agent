@@ -2,9 +2,11 @@
 
 from contextlib import asynccontextmanager
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.staticfiles import StaticFiles
 
 from personal_agent.application.contracts import RunResponse, SubmitMessage
 from personal_agent.application.runs import (
@@ -31,6 +33,7 @@ def create_app(
     scheduler: PersonalRunScheduler | None = None,
     run_store: PersonalRunStore | None = None,
     close_resources: Callable[[], Awaitable[None]] | None = None,
+    static_directory: Path | None = None,
 ) -> FastAPI:
     """Create an HTTP app around injected scheduling dependencies."""
 
@@ -81,6 +84,10 @@ def create_app(
             raise HTTPException(status_code=404, detail="未找到 Run")
         return _run_response(run)
 
+    if static_directory is not None:
+        if not static_directory.is_dir():
+            raise ValueError(f"前端静态目录不存在: {static_directory}")
+        app.mount("/", StaticFiles(directory=static_directory, html=True), name="frontend")
     return app
 
 
