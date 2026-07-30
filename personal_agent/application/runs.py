@@ -6,6 +6,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
+from threading import RLock
 from typing import Protocol
 from uuid import uuid4
 
@@ -62,8 +63,9 @@ class PersonalRunStore:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.path)
+        self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
+        self._lock = RLock()
         self.connection.execute("PRAGMA busy_timeout=5000")
         if self.path != Path(":memory:"):
             self.connection.execute("PRAGMA journal_mode=WAL")
@@ -82,34 +84,38 @@ class PersonalRunStore:
         self.connection.commit()
 
     def close(self) -> None:
-        self.connection.close()
+        with self._lock:
+            self.connection.close()
 
     def create_queued(self, conversation_id: str, question: str) -> PersonalRun:
-        active = self.connection.execute(
-            "SELECT run_id FROM personal_runs WHERE conversation_id=? AND status IN (?, ?)",
-            (conversation_id, *(status.value for status in ACTIVE_RUN_STATUSES)),
-        ).fetchone()
-        if active is not None:
-            raise RunConflictError(f"会话已有未完成 Run: {active['run_id']}")
-        now = utc_now()
-        record = PersonalRun(
-            run_id=f"personal-{uuid4()}", conversation_id=conversation_id, question=question,
-            status=PersonalRunStatus.QUEUED, created_at=now, updated_at=now,
-        )
-        with self.connection:
-            self.connection.execute(
-                "INSERT INTO personal_runs VALUES(?,?,?,?,?,?,?,?,?)", self._values(record)
+        with self._lock:
+            active = self.connection.execute(
+                "SELECT run_id FROM personal_runs WHERE conversation_id=? AND status IN (?, ?)",
+                (conversation_id, *(status.value for status in ACTIVE_RUN_STATUSES)),
+            ).fetchone()
+            if active is not None:
+                raise RunConflictError(f"会话已有未完成 Run: {active['run_id']}")
+            now = utc_now()
+            record = PersonalRun(
+                run_id=f"personal-{uuid4()}", conversation_id=conversation_id, question=question,
+                status=PersonalRunStatus.QUEUED, created_at=now, updated_at=now,
             )
+            with self.connection:
+                self.connection.execute(
+                    "INSERT INTO personal_runs VALUES(?,?,?,?,?,?,?,?,?)", self._values(record)
+                )
         return record
 
     def get(self, run_id: str) -> PersonalRun | None:
-        row = self.connection.execute("SELECT * FROM personal_runs WHERE run_id=?", (run_id,)).fetchone()
+        with self._lock:
+            row = self.connection.execute("SELECT * FROM personal_runs WHERE run_id=?", (run_id,)).fetchone()
         return self._from_row(row) if row else None
 
     def list_by_status(self, status: PersonalRunStatus) -> list[PersonalRun]:
-        rows = self.connection.execute(
-            "SELECT * FROM personal_runs WHERE status=? ORDER BY created_at, run_id", (status.value,)
-        )
+        with self._lock:
+            rows = self.connection.execute(
+                "SELECT * FROM personal_runs WHERE status=? ORDER BY created_at, run_id", (status.value,)
+            ).fetchall()
         return [self._from_row(row) for row in rows]
 
     def mark_running(self, run_id: str) -> PersonalRun:
@@ -123,7 +129,7 @@ class PersonalRunStore:
 
     def mark_running_as_interrupted(self) -> int:
         now = utc_now()
-        with self.connection:
+        with self._lock, self.connection:
             cursor = self.connection.execute(
                 "UPDATE personal_runs SET status=?, updated_at=?, completed_at=?, error_message=? WHERE status=?",
                 (
@@ -135,7 +141,7 @@ class PersonalRunStore:
 
     def expire_before(self, cutoff: datetime) -> int:
         now = utc_now()
-        with self.connection:
+        with self._lock, self.connection:
             cursor = self.connection.execute(
                 "UPDATE personal_runs SET status=?, updated_at=?, completed_at=?, answer_json=NULL, error_message=? "
                 "WHERE updated_at<? AND status!=?",
@@ -154,26 +160,28 @@ class PersonalRunStore:
         answer: AgentAnswer | None = None,
         error_message: str | None = None,
     ) -> PersonalRun:
-        existing = self.get(run_id)
-        if existing is None:
-            raise ValueError(f"未找到 Run: {run_id}")
-        now = utc_now()
-        completed_at = now if target in {PersonalRunStatus.COMPLETED, PersonalRunStatus.FAILED} else None
-        updated = existing.model_copy(
-            update={
-                "status": target, "updated_at": now, "completed_at": completed_at,
-                "answer": answer, "error_message": error_message,
-            }
-        )
-        with self.connection:
-            self.connection.execute(
-                "UPDATE personal_runs SET status=?, updated_at=?, completed_at=?, answer_json=?, error_message=? WHERE run_id=?",
-                (
-                    updated.status.value, updated.updated_at.isoformat(),
-                    updated.completed_at.isoformat() if updated.completed_at else None,
-                    updated.answer.model_dump_json() if updated.answer else None, updated.error_message, run_id,
-                ),
+        with self._lock:
+            row = self.connection.execute("SELECT * FROM personal_runs WHERE run_id=?", (run_id,)).fetchone()
+            if row is None:
+                raise ValueError(f"未找到 Run: {run_id}")
+            existing = self._from_row(row)
+            now = utc_now()
+            completed_at = now if target in {PersonalRunStatus.COMPLETED, PersonalRunStatus.FAILED} else None
+            updated = existing.model_copy(
+                update={
+                    "status": target, "updated_at": now, "completed_at": completed_at,
+                    "answer": answer, "error_message": error_message,
+                }
             )
+            with self.connection:
+                self.connection.execute(
+                    "UPDATE personal_runs SET status=?, updated_at=?, completed_at=?, answer_json=?, error_message=? WHERE run_id=?",
+                    (
+                        updated.status.value, updated.updated_at.isoformat(),
+                        updated.completed_at.isoformat() if updated.completed_at else None,
+                        updated.answer.model_dump_json() if updated.answer else None, updated.error_message, run_id,
+                    ),
+                )
         return updated
 
     @staticmethod
