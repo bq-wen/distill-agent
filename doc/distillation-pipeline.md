@@ -62,7 +62,7 @@ class KnowledgeAtom(BaseModel):
 # 全量蒸馏（产物先落 audit，批准后才入库）
 python3.12 -m personal_agent.distillation.cli distill --input knowledge/examples/raw --database data/knowledge.db
 
-# 增量：只处理变更文件（记录在 data/distill_state.json）
+# 增量：只处理内容变化的文件（哈希记录在 data/distill/state.json）
 python3.12 -m personal_agent.distillation.cli distill --input ... --incremental
 
 # 审批
@@ -94,4 +94,4 @@ A: CLI 优先——蒸馏是低频后台操作，CLI + JSON 产物可脚本化�
 A: 三层：① 提炼 prompt 只产出事实/QA，不产出观点性虚构；② 每原子带 confidence + 溯源；③ 人工审批闸门兜底。准确率不是"保证不犯错"，而是"错误可被发现、可追溯、可拒绝"。
 
 **Q: 增量蒸馏怎么判断文件变了？**
-A: 记录 mtime + 内容 hash（`data/distill_state.json`），只处理变更文件；全量重建由 `--rebuild` 显式触发。
+A: `run --incremental` 先对输入目录逐文件算 SHA-256，与 `data/distill/state.json` 中上次成功运行记录的哈希比对；全部未变则直接跳过，部分变更则只蒸馏变更文件。全量重建去掉 `--incremental` 即可。
