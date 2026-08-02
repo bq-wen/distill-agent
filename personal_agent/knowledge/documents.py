@@ -56,6 +56,13 @@ def parse_markdown_document(path: str | Path) -> KnowledgeDocument:
 
     source_path = Path(path)
     raw = source_path.read_text(encoding="utf-8")
+    return parse_markdown_text(raw, path=source_path)
+
+
+def parse_markdown_text(raw: str, *, path: str | Path) -> KnowledgeDocument:
+    """Parse Markdown with YAML front matter from an in-memory string."""
+
+    source_path = Path(path)
     if not raw.startswith("---\n"):
         raise KnowledgeDocumentError(f"知识资料缺少 YAML front matter: {source_path}")
 

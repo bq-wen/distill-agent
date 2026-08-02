@@ -10,7 +10,7 @@
 ┌─────────────── 蒸馏链路（后台，SUPERVISED 模式） ───────────────┐
 │ 原始资料目录(聊天/简历/README/Git历史)                           │
 │    → SourceLoader(载入) → Cleaner(清洗) → Extractor(LLM提炼)     │
-│    → Structurer(结构化) → AuditGate(人工审批闸门) → Indexer(写库) │
+│    → Structurer(结构化) → AuditGate(审批闸门) → Indexer(写库)     │
 └──────────────────────────────┬──────────────────────────────────┘
                                │ 审核通过的知识文档
                                ▼

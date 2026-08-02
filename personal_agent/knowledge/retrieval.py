@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 
 from personal_agent.knowledge.chunking import chunk_markdown
-from personal_agent.knowledge.documents import KnowledgeDocument, parse_markdown_document
+from personal_agent.knowledge.documents import KnowledgeDocument, parse_markdown_document, parse_markdown_text
 from personal_agent.knowledge.embedding import EmbeddingProvider
 from personal_agent.knowledge.models import KnowledgeChunk, RetrievalMatch
 from personal_agent.knowledge.store import KnowledgeStore
@@ -42,6 +42,12 @@ class PersonalKnowledgeService:
         ]
         self.store.replace_source(document.metadata, records)
         return len(records)
+
+    def index_markdown_text(self, raw: str, *, path: str) -> int:
+        """Index a Markdown document that only exists in memory (distillation output)."""
+
+        document = parse_markdown_text(raw, path=path)
+        return self.index_document(document)
 
     def search_keywords(self, query: str, *, limit: int = 5) -> list[RetrievalMatch]:
         return self.store.search_keywords(query, limit=_validated_limit(limit))

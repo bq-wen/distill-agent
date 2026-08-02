@@ -61,7 +61,6 @@ cd frontend && npm run dev
 ## Knowledge Documents
 
 知识材料采用 Markdown 加 YAML front matter。原始正文可以是私有材料，但页面只收到审核过的 `public_summary` 与可选 `public_url`，绝不暴露本地路径或原始 Markdown。
-
 ```markdown
 ---
 source_id: wengraph-overview
@@ -82,7 +81,25 @@ topics: [architecture]  # 可选：主题标签
 
 `source_id` 必须稳定且只包含小写字母、数字、`-` 或 `_`。生产索引使用本地 Sentence Transformers；`--hash-embedding` 仅供无模型下载的测试，不适用于生产检索。
 
-### Profile 身份文档
+## Distillation Pipeline（蒸馏链路）
+
+后台知识处理流水线：把**原始资料目录**自动加工成知识库。同一条 WenGraph 图运行时，蒸馏图运行在 `SUPERVISED` 模式——写审计产物（MEDIUM 风险）与写知识库（HIGH 风险）两个工具在 ToolGuard 处强制 `REQUIRE_APPROVAL`，未批准的内容不会进入知识库。
+
+```bash
+# 交互式运行（每个写步骤都会暂停等你批准）
+python3.12 -m personal_agent.distillation.cli run --input knowledge/raw --database data/knowledge.db
+
+# 自动化（CI/演示）：直接批准所有闸门
+python3.12 -m personal_agent.distillation.cli run --input knowledge/raw --database data/knowledge.db --yes
+
+# 非 TTY 环境：run 停在第一个审批闸门并打印 run_id，随后可单独批准/驳回
+python3.12 -m personal_agent.distillation.cli approve --run distill-xxxx --database data/knowledge.db
+python3.12 -m personal_agent.distillation.cli approve --run distill-xxxx --database data/knowledge.db --reject
+```
+
+流水线：`SourceLoader → Cleaner → Extractor(LLM) → Structurer → AuditGate → Indexer`。输入支持 `.md/.txt/.json`；LLM 提炼产物为可溯源的知识原子（`content/kind/confidence/source_file`）；审核产物落在 `data/distill/audit/<run_id>.json`，增量哈希记录在 `data/distill/state.json`。生产检索仍用本地 Sentence Transformers，`--hash-embedding` 仅供测试。
+
+## Profile 身份文档
 
 `knowledge/profile.md` 是数字分身的身份来源（front matter 带 `profile: true`，`source_id` 固定为 `profile`）。姓名、monogram、简介、GitHub、覆盖主题与推荐问题全部由此驱动；未载入时回落中性默认身份，页面不写死任何个人内容。
 

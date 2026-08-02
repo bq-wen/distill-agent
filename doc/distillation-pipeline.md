@@ -1,6 +1,6 @@
 # 蒸馏链路（知识处理流水线）详解
 
-> 目标态设计（规划中，见蒸馏任务）。当前仓库只有"手写 front matter Markdown → 索引"一条路；本链路是把它升级为"原始资料 → 自动加工 → 人工审核 → 入库"。
+> 已实现。`personal_agent/distillation/` 包含完整流水线：契约、节点、工具、图装配、runner 与 CLI（`distill run` / `distill approve`）。
 
 ## 1. 为什么需要蒸馏链路
 
@@ -15,7 +15,7 @@
 ## 2. 流水线节点（一张图）
 
 ```
-SourceLoader → Cleaner → Extractor(LLM) → Structurer → AuditGate → Indexer
+SourceLoader → Cleaner → Extractor(LLM) → Structurer → ContentRouter → AuditGate → Indexer
      │            │            │              │            │           │
    读输入目录    去噪脱敏      LLM提炼        生成 front    人工审批     复用现有
    识别文件类型   统一中间态   知识原子        matter MD     闸门        索引层
@@ -56,7 +56,7 @@ class KnowledgeAtom(BaseModel):
 
 面试讲法："蒸馏结果的写入不是自动的——同一套 ToolGuard 机制，在线服务无人值守放行只读检索，后台蒸馏在写库前强制人工审批。治理模型是同一个，参数不同。"
 
-## 5. CLI 用法（目标态）
+## 5. CLI 用法（已实现）
 
 ```bash
 # 全量蒸馏（产物先落 audit，批准后才入库）
@@ -72,7 +72,7 @@ python3.12 -m personal_agent.distillation.cli approve <run_id> --atom <atom_id> 
 
 ## 6. 输入格式优先级
 
-- **v1**（本期）：Markdown / TXT / JSON——通用、好测、好演示
+- **v1**（已实现）：Markdown / TXT / JSON——通用、好测、好演示
 - **v2**（后续）：微信聊天导出等脏格式（解析器 + 更强的清洗规则）
 - 演示素材优先：**项目 README + 面试问答笔记 + Git 提交历史**——产出物对求职最有用（QA 对直接变成面试回答弹药）
 

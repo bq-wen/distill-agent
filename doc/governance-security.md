@@ -38,10 +38,10 @@ LLM/节点申请工具
 
 ## 2. 两张子图的治理对比（本项目核心叙事）
 
-| | 展示链路 | 蒸馏链路（目标态） |
+| | 展示链路 | 蒸馏链路 |
 |---|---|---|
 | 模式 | `UNATTENDED` | `SUPERVISED` |
-| 工具 | 只读检索（READ_ONLY, LOW） | 写审计产物/写库（WRITE, MEDIUM/HIGH） |
+| 工具 | 只读检索（READ_ONLY, LOW） | 写审计产物（MEDIUM）/ 写库（HIGH） |
 | 效果 | 全自动放行 | 写库前强制 `REQUIRE_APPROVAL` 人工审批 |
 
 **一句话**：同一套门卫，换参数就得到两种安全模型。这正是"自研图运行时"相比"裸调 LLM + 散装工具函数"的价值。
@@ -87,7 +87,7 @@ guard.capability_policy.grant(llm.name, {Capability.READ_CODE})
 | 无登录会话 | sessionStorage 随机会话 ID，无账号体系、无跨设备同步 |
 | 24h TTL | 临时会话与回答 24 小时过期（`PERSONAL_AGENT_CONVERSATION_TTL_HOURS`） |
 | 单进程部署约束 | 队列进程内结构；多实例必须换共享调度（Redis/Celery），README 明示 |
-| 蒸馏人工审批（目标态） | LLM 提炼产物必须人工审核后才写库 |
+| 蒸馏人工审批（已实现） | 蒸馏图跑在 SUPERVISED 模式，写库工具强制 REQUIRE_APPROVAL |
 
 ## 6. 面试高频追问
 
