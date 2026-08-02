@@ -100,9 +100,16 @@ def _source_id_for(source_file: str) -> str:
 class SourceLoaderNode(Node):
     name = "source_loader_node"
 
-    def __init__(self, input_dir: str | Path, artifact_store) -> None:
+    def __init__(
+        self,
+        input_dir: str | Path,
+        artifact_store,
+        only_files: set[str] | None = None,
+    ) -> None:
         self.input_dir = Path(input_dir)
         self.artifact_store = artifact_store
+        # 增量模式：只载入指定文件（相对路径）；None 表示全量。
+        self.only_files = only_files
 
     async def execute(self, state: StateView) -> StatePatch:
         if not self.input_dir.is_dir():
@@ -110,10 +117,12 @@ class SourceLoaderNode(Node):
         files = sorted(
             path
             for path in self.input_dir.rglob("*")
-            if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json"}
+            if path.is_file()
+            and path.suffix.lower() in {".md", ".txt", ".json"}
+            and (self.only_files is None or str(path.relative_to(self.input_dir)) in self.only_files)
         )
         if not files:
-            raise ValueError("输入目录没有可蒸馏的文件（.md/.txt/.json）")
+            raise ValueError("增量模式下没有内容变化的文件，无需蒸馏")
 
         entries: list[SourceFile] = []
         refs = {}

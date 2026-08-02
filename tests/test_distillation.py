@@ -219,3 +219,38 @@ def test_pipeline_without_atoms_stops_before_gates(tmp_path: Path) -> None:
         assert ctx.knowledge_store.list_sources() == []
     finally:
         ctx.close()
+
+
+def test_incremental_run_skips_unchanged_files(tmp_path: Path) -> None:
+    model = ScriptedDistillModel(
+        [
+            _atoms_response("我用 ToolGuard 治理工具调用。", "状态变更通过 StatePatch 表达。"),
+            _atoms_response("我自研图运行时为了可控性。"),
+            _atoms_response("RAG 可信靠混合检索、阈值与引用合同。"),
+        ]
+    )
+    ctx = _scripted_context(tmp_path, model)
+    try:
+        first = run_pipeline(ctx, run_id="distill-incr-1", yes=True)
+        assert first.status is RunStatus.COMPLETED
+        assert len(ctx.knowledge_store.list_sources()) == 2
+        assert (ctx.distill_dir / "state.json").is_file()
+
+        # 内容未变化：增量运行应直接跳过，不产生新审计产物、不再调用模型。
+        second = run_pipeline(ctx, run_id="distill-incr-2", yes=True, incremental=True)
+        assert second.status is RunStatus.COMPLETED
+        assert "没有内容变化" in (second.state.message or "")
+        assert not (ctx.audit_dir / "distill-incr-2.json").exists()
+        assert len(model.messages) == 2  # 两次提取调用来自首次运行
+
+        # 修改一个文件后：增量只处理变更文件（一次提取调用）。
+        (ctx.input_dir / "chat" / "notes.txt").write_text(
+            "20:31 - 有人问：RAG 怎么保证可信？\n我回答：混合检索 + 阈值 + 引用合同。\n",
+            encoding="utf-8",
+        )
+        third = run_pipeline(ctx, run_id="distill-incr-3", yes=True, incremental=True)
+        assert third.status is RunStatus.COMPLETED
+        assert len(model.messages) == 3
+        assert (ctx.audit_dir / "distill-incr-3.json").is_file()
+    finally:
+        ctx.close()

@@ -53,6 +53,7 @@ def build_distillation_graph(
     input_dir: str,
     run_id: str,
     extraction_prompt: str | None = None,
+    only_files: set[str] | None = None,
 ) -> tuple[Graph, list]:
     """Assemble the supervised distillation pipeline and return the guarded tools."""
 
@@ -62,7 +63,7 @@ def build_distillation_graph(
     for tool in (audit_tool, index_tool):
         registry.register(tool)
 
-    loader = SourceLoaderNode(input_dir, artifact_store)
+    loader = SourceLoaderNode(input_dir, artifact_store, only_files=only_files)
     cleaner = CleanerNode(artifact_store)
     extractor = ExtractorNode(chat_model, artifact_store, prompt=extraction_prompt)
     structurer = StructurerNode(artifact_store)

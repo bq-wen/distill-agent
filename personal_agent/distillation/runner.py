@@ -114,7 +114,7 @@ def build_context(
     )
 
 
-def _new_executor(ctx: DistillContext, *, run_id: str) -> GraphExecutor:
+def _new_executor(ctx: DistillContext, *, run_id: str, only_files: set[str] | None = None) -> GraphExecutor:
     graph, _ = build_distillation_graph(
         artifact_store=ctx.artifact_store,
         chat_model=ctx.chat_model,
@@ -123,6 +123,7 @@ def _new_executor(ctx: DistillContext, *, run_id: str) -> GraphExecutor:
         input_dir=str(ctx.input_dir),
         run_id=run_id,
         extraction_prompt=ctx.extraction_prompt,
+        only_files=only_files,
     )
     return GraphExecutor(
         graph,
@@ -135,8 +136,8 @@ def _new_executor(ctx: DistillContext, *, run_id: str) -> GraphExecutor:
     )
 
 
-async def _run_pipeline(ctx: DistillContext, *, run_id: str, approve: bool | None, yes: bool) -> RunResult:
-    executor = _new_executor(ctx, run_id=run_id)
+async def _run_pipeline(ctx: DistillContext, *, run_id: str, approve: bool | None, yes: bool, only_files: set[str] | None = None) -> RunResult:
+    executor = _new_executor(ctx, run_id=run_id, only_files=only_files)
     result = await executor.run(run_id=run_id, timeout_seconds=1800)
     while result.status is RunStatus.PENDING_APPROVAL:
         assert result.checkpoint is not None
@@ -183,6 +184,25 @@ def _ask(prompt: str) -> bool:
     return answer in {"y", "yes"}
 
 
+def _changed_files(ctx: DistillContext) -> set[str]:
+    """Relative paths of input files whose content hash differs from the last run."""
+
+    state = ctx.load_state()
+    changed: set[str] = set()
+    for path in sorted(ctx.input_dir.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in {".md", ".txt", ".json"}:
+            continue
+        relative = str(path.relative_to(ctx.input_dir))
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if not state.is_unchanged(relative, digest):
+            changed.add(relative)
+    return changed
+
+
+def _noop_result(run_id: str, message: str) -> RunResult:
+    return RunResult(status=RunStatus.COMPLETED, state=State(message=message))
+
+
 def run_pipeline(
     ctx: DistillContext,
     *,
@@ -193,7 +213,13 @@ def run_pipeline(
     """Execute the full distillation pipeline with approval gates."""
 
     run_id = run_id or f"distill-{uuid4()}"
-    result = asyncio.run(_run_pipeline(ctx, run_id=run_id, approve=None, yes=yes))
+    only_files: set[str] | None = None
+    if incremental:
+        only_files = _changed_files(ctx)
+        if not only_files:
+            print("没有内容变化的文件，跳过本次蒸馏。", file=sys.stderr)
+            return _noop_result(run_id, "没有内容变化的文件，跳过本次蒸馏。")
+    result = asyncio.run(_run_pipeline(ctx, run_id=run_id, approve=None, yes=yes, only_files=only_files))
     if result.status is RunStatus.COMPLETED:
         _record_indexed_hashes(ctx, run_id)
     return result
@@ -214,21 +240,19 @@ def approve_run(ctx: DistillContext, *, run_id: str, approved: bool) -> RunResul
 
 
 def _record_indexed_hashes(ctx: DistillContext, run_id: str) -> None:
-    """Mark input files as indexed so future incremental runs skip them."""
+    """Record content hashes of every input file after a successful run.
 
-    audit_path = ctx.audit_dir / f"{run_id}.json"
-    if not audit_path.is_file():
-        return
-    try:
-        payload = AuditArtifact.model_validate_json(audit_path.read_text(encoding="utf-8"))
-    except ValueError:
-        return
+    Only files that actually produced indexed atoms are guaranteed to be in the
+    audit artifact, so the incremental skip set is derived from the input
+    directory directly instead.
+    """
+
     state = ctx.load_state()
-    for atom in payload.atoms:
-        source = ctx.input_dir / atom.source_file
-        if source.is_file():
-            digest = hashlib.sha256(source.read_bytes()).hexdigest()
-            state.files[str(source.relative_to(ctx.input_dir))] = digest
+    for path in sorted(ctx.input_dir.rglob("*")):
+        if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json"}:
+            relative = str(path.relative_to(ctx.input_dir))
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            state.files[relative] = digest
     ctx.save_state(state)
 
 
