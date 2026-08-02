@@ -70,6 +70,10 @@ title: WenGraph 架构说明
 visibility: private
 public_summary: 自研 Agent 图运行时，关注可控执行与工具治理。
 public_url: https://github.com/bq-wen/wengraph
+public_questions:   # 可选：出现在页面推荐问题区，驱动前端主题
+  - WenGraph 解决了什么问题？
+  - 你如何设计 Agent 的工具安全边界？
+topics: [architecture]  # 可选：主题标签
 ---
 # WenGraph
 
@@ -77,6 +81,10 @@ public_url: https://github.com/bq-wen/wengraph
 ```
 
 `source_id` 必须稳定且只包含小写字母、数字、`-` 或 `_`。生产索引使用本地 Sentence Transformers；`--hash-embedding` 仅供无模型下载的测试，不适用于生产检索。
+
+### Profile 身份文档
+
+`knowledge/profile.md` 是数字分身的身份来源（front matter 带 `profile: true`，`source_id` 固定为 `profile`）。姓名、monogram、简介、GitHub、覆盖主题与推荐问题全部由此驱动；未载入时回落中性默认身份，页面不写死任何个人内容。
 
 ## Docker Deployment
 

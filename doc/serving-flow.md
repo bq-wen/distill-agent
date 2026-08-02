@@ -50,20 +50,28 @@ search_personal_keywords(query, limit=5)   # 关键词：SQLite FTS5 精确匹�
 
 ## 4. Persona（人格约束）如何工作
 
-当前（现状）：`graph.py` 中硬编码 `PERSONA_PROMPT`，核心约束：
+现状：persona 由 `knowledge/profile.md`（front matter 身份字段 + 正文画像）动态生成——
+`personal_agent/application/profile.py` 的 `build_persona_prompt(load_profile(store))`，
+无 profile 文档时回落中性默认人格。核心约束：
 - 明确披露是 AI 数字分身，不是本人实时在线
 - 个人经历/事实必须来自检索结果，**资料不足时明确说"资料没覆盖，建议问本人"，绝不编造**
 - 通用技术问题可以答，但不等同于个人经历；私密信息说明不在公开范围
 
 目标态：persona 从 `knowledge/profile.md` 动态生成（见 serving-generalization 子任务）。
 
-## 5. 会话与记忆
+## 5. 身份与推荐问题（数据驱动）
+
+- `GET /api/profile`：身份响应（name/monogram/role/github/greeting/covered_topics），来自 `knowledge/profile.md`；未载入返回 404，前端回落默认身份
+- `GET /api/topics`：按 project 分组的推荐问题（front matter `public_questions` + 索引元数据），前端据此渲染推荐问题按钮
+- 换一份 profile + 资料目录重新索引 → 姓名、monogram、简介、推荐问题全部跟随变化，无需改前端代码
+
+## 6. 会话与记忆
 
 - 每个浏览器标签页 `sessionStorage` 一个随机会话 ID → 无登录、无跨设备同步、无会话列表
 - 服务端临时会话 + run 保留 24 小时（`PERSONAL_AGENT_CONVERSATION_TTL_HOURS`）
 - 多轮对话上下文由 `ContextBuilder` 组装进 LLM 请求
 
-## 6. 面试高频追问
+## 7. 面试高频追问
 
 **Q: 为什么队列满返回 429？**
 A: 背压（backpressure）。LLM 调用是慢外部依赖，无界队列会让内存和延迟失控；固定 worker + 有界队列让系统"拒绝得优雅"而不是"拖垮"。
@@ -77,7 +85,7 @@ A: 轮询实现简单、状态明确，是演示的稳妥选择；体验升级�
 **Q: 会话冲突 409 是什么？**
 A: 同一会话同时提交多条消息会冲突（一个会话同一时刻只跑一个 run），用 409 拒绝并发，保证上下文一致性。
 
-## 7. 代码阅读路线
+## 8. 代码阅读路线
 
 ```
 frontend/src/main.tsx          → 前端全貌（134 行，读 10 分钟）

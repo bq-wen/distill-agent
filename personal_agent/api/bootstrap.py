@@ -68,6 +68,7 @@ def create_production_app(settings: ApplicationSettings | None = None) -> FastAP
     return create_app(
         scheduler=resources.scheduler,
         run_store=resources.run_store,
+        knowledge_store=resources.knowledge_store,
         close_resources=resources.close,
         static_directory=static_directory if static_directory.is_dir() else None,
     )

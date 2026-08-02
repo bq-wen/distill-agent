@@ -8,8 +8,20 @@ type Answer = { text: string; citations: Citation[] }
 type Run = { run_id: string; status: RunStatus; answer: Answer | null; error_message: string | null }
 type RunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'interrupted' | 'expired'
 type Message = { id: string; role: 'user' | 'assistant'; text: string; citations?: Citation[]; status?: RunStatus }
+type Profile = {
+  name: string; monogram: string; role: string; github: string | null
+  greeting: string; style: string; covered_topics: string[]
+}
+type TopicItem = { source_id: string; title: string; summary: string; url: string | null; questions: string[] }
+type TopicGroup = { project: string; topics: TopicItem[] }
 
-const questions = ['WenGraph 解决了什么问题？', '你如何设计 Agent 的工具安全边界？', '介绍自动化运维多专家 Agent 的思路']
+// 兜底内容：仅当 /api/profile 或 /api/topics 不可用（未建索引/接口未配置）时使用，
+// 保证空知识库状态下页面依然可演示，不写死任何个人身份信息。
+const fallbackProfile: Profile = {
+  name: 'AI 数字分身', monogram: 'AI', role: '', github: null,
+  greeting: '你好，我是基于授权资料构建的 AI 数字分身。', style: '', covered_topics: [],
+}
+const fallbackQuestions = ['你能介绍哪些项目？', '你的知识覆盖哪些主题？', '你如何保证回答不编造？']
 const sessionKey = 'personal-agent-conversation-id'
 
 function conversationId(): string {
@@ -33,12 +45,45 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
+type SuggestedQuestion = { question: string; project: string | null }
+
+function collectQuestions(groups: TopicGroup[], limit = 6): SuggestedQuestion[] {
+  const result: SuggestedQuestion[] = []
+  for (const group of groups) {
+    for (const topic of group.topics) {
+      for (const question of topic.questions) {
+        result.push({ question, project: group.project })
+        if (result.length >= limit) return result
+      }
+    }
+  }
+  return result
+}
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [profile, setProfile] = useState<Profile>(fallbackProfile)
+  const [suggested, setSuggested] = useState<SuggestedQuestion[]>(() =>
+    fallbackQuestions.map((question) => ({ question, project: null })),
+  )
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    void fetch('/api/profile')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: Profile | null) => { if (body) setProfile(body) })
+      .catch(() => { /* 保持兜底身份 */ })
+    void fetch('/api/topics')
+      .then((response) => (response.ok ? response.json() : []))
+      .then((groups: TopicGroup[]) => {
+        const questions = collectQuestions(groups)
+        if (questions.length > 0) setSuggested(questions)
+      })
+      .catch(() => { /* 保持兜底问题 */ })
+  }, [])
 
   useEffect(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), [messages, pending])
 
@@ -90,9 +135,9 @@ export default function App() {
 
   return <main className="app-shell">
     <header className="topbar">
-      <a className="identity" href="#chat" aria-label="个人数字分身首页"><span className="monogram">W</span><span>Wen / Digital Twin</span></a>
+      <a className="identity" href="#chat" aria-label="数字分身首页"><span className="monogram">{profile.monogram}</span><span>{profile.name} / Digital Twin</span></a>
       <div className="topbar-actions">
-        <a className="icon-link" href="https://github.com/bq-wen" target="_blank" rel="noreferrer" title="GitHub"><Github size={18} /></a>
+        {profile.github && <a className="icon-link" href={profile.github} target="_blank" rel="noreferrer" title="GitHub"><Github size={18} /></a>}
         <button className="icon-button" type="button" onClick={resetConversation} title="开始新的临时对话" disabled={pending}><RotateCcw size={18} /></button>
       </div>
     </header>
@@ -100,23 +145,24 @@ export default function App() {
       <aside className="profile-panel">
         <div className="portrait" aria-hidden="true"><Bot size={52} strokeWidth={1.25} /><span className="signal signal-one" /><span className="signal signal-two" /></div>
         <p className="eyebrow">PERSONAL AGENT</p>
-        <h1>你好，我是 Wen 的 AI 数字分身。</h1>
-        <p>我基于授权项目资料，用第一人称介绍 WenGraph、Agent 工程实践与项目设计。</p>
+        <h1>{profile.greeting || `你好，我是 ${profile.name} 的 AI 数字分身。`}</h1>
+        <p>{profile.role ? `我基于授权项目资料，用第一人称介绍${profile.role}与相关项目设计。` : '我基于授权项目资料，用第一人称介绍项目与工程实践。'}</p>
+        {profile.covered_topics.length > 0 && <div className="covered" aria-label="知识覆盖主题">{profile.covered_topics.map((topic) => <span key={topic}>{topic}</span>)}</div>}
         <p className="disclosure"><Sparkles size={16} />这是 AI，不是本人实时在线。资料未覆盖时，我会明确说明。</p>
-        <div className="topics" aria-label="推荐问题">{questions.map((question) => <button key={question} type="button" onClick={() => void submit(question)} disabled={pending}>{question}</button>)}</div>
+        <div className="topics" aria-label="推荐问题">{suggested.map((item) => <button key={item.question} type="button" onClick={() => void submit(item.question)} disabled={pending}>{item.question}</button>)}</div>
       </aside>
       <section className="conversation" aria-label="对话">
-        {messages.length === 0 && <div className="empty-state"><span className="empty-mark">W</span><h2>从一个项目问题开始</h2><p>可以问框架设计、系统边界，或我的工程取舍。</p></div>}
+        {messages.length === 0 && <div className="empty-state"><span className="empty-mark">{profile.monogram}</span><h2>从一个项目问题开始</h2><p>可以问框架设计、系统边界，或我的工程取舍。</p></div>}
         <div className="messages">
           {messages.map((message) => <article className={`message ${message.role}`} key={message.id}>
-            <div className="message-label">{message.role === 'user' ? '你' : 'Wen 的 AI 分身'}</div>
+            <div className="message-label">{message.role === 'user' ? '你' : `${profile.name} 的 AI 分身`}</div>
             <p>{message.text}</p>
             {message.citations && message.citations.length > 0 && <div className="citations">{message.citations.map((citation) => <div className="citation" key={citation.source_id}>
               <span>{citation.project}</span><strong>{citation.title}</strong><p>{citation.summary}</p>
               {citation.url && <a href={citation.url} target="_blank" rel="noreferrer">查看公开资料 <ExternalLink size={14} /></a>}
             </div>)}</div>}
           </article>)}
-          {pending && <article className="message assistant pending"><div className="message-label">Wen 的 AI 分身</div><p><LoaderCircle size={16} /> {statusText('running')}</p></article>}
+          {pending && <article className="message assistant pending"><div className="message-label">{profile.name} 的 AI 分身</div><p><LoaderCircle size={16} /> {statusText('running')}</p></article>}
           {error && <div className="error-notice" role="alert">{error}</div>}
           <div ref={bottomRef} />
         </div>

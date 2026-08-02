@@ -5,15 +5,33 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from personal_agent.contracts import PublicCitation, SourceMetadata
 
 
 class KnowledgeDocumentFrontMatter(SourceMetadata):
-    """Required metadata at the top of each version-controlled Markdown source."""
+    """Required metadata at the top of each version-controlled Markdown source.
+
+    Identity fields are only meaningful when ``profile`` is true; the frontend and
+    persona prompt read them through :mod:`personal_agent.application.profile`.
+    """
 
     version: int = Field(default=1, ge=1)
+    profile: bool = False
+    name: str | None = None
+    monogram: str | None = None
+    role: str | None = None
+    github: str | None = None
+    greeting: str | None = None
+    style: str | None = None
+    covered_topics: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_profile_document(self) -> "KnowledgeDocumentFrontMatter":
+        if self.profile and not self.name:
+            raise ValueError("身份文档（profile: true）必须提供 name")
+        return self
 
 
 @dataclass(frozen=True)

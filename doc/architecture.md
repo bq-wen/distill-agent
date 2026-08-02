@@ -23,7 +23,7 @@
 ┌─────────────── 展示链路（在线，UNATTENDED 模式） ───────────────┐
 │ 访客提问 → LLMNode(ReAct) → AgentRouter → ToolGuard → ToolNode  │
 │           → LLMNode(带检索结果) → 回答 + 引用                    │
-│ persona 由 profile 文档动态生成（目标态）                        │
+│ persona 由 profile 文档动态生成                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -51,7 +51,9 @@
 - LLM 生成耗时（秒级），同步请求会占满连接；返回 `202 Accepted` + `run_id`，前端轮询 `/api/runs/{id}`，把"提交"和"结果"解耦。
 - 队列是进程内的有界 `asyncio.Queue` + 固定数量 worker：容量可控（队列满返回 429），代价是**只能单进程部署**（README 已写明横向扩展路径是 Redis/Celery 共享调度）。
 
-## 4. 数据契约（目标态）
+## 4. 数据契约
+
+四类核心数据结构，是"模板化"的骨架（展示链路的契约已实现，蒸馏链路契约随蒸馏任务落地）：
 
 四类核心数据结构，是"模板化"的骨架：
 
@@ -71,7 +73,7 @@
 | 并发 | asyncio + 有界 Queue + 固定 worker | 容量可控的异步执行 |
 | 存储 | SQLite（WAL）+ 本地 embedding（bge-small-zh） | 知识索引 + FTS5 |
 | 前端 | React 18 + TypeScript + Vite | 单页聊天界面 |
-| 部署 | Docker + compose + Nginx（目标态） | 单机上线 |
+| 部署 | Docker + compose + Nginx（模板打包任务） | 单机上线 |
 
 ## 6. 面试开场白（30 秒版本）
 

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from personal_agent.application.contracts import AgentAnswer
 from personal_agent.application.graph import build_personal_graph
+from personal_agent.application.profile import build_persona_prompt, load_profile
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.wengraph_runtime import ChatModel, ConversationEvent, ConversationStore, GraphExecutor, RunStatus, State
 
@@ -32,8 +33,12 @@ class PersonalAgentService:
             raise ValueError("问题不能为空")
         initial_matches = self._initial_matches(question)
         evidence = self._render_initial_evidence(initial_matches)
+        persona_prompt = build_persona_prompt(load_profile(self.knowledge.store))
         graph, tools = build_personal_graph(
-            self.knowledge, self.chat_model, conversation_store=self.conversation_store
+            self.knowledge,
+            self.chat_model,
+            conversation_store=self.conversation_store,
+            persona_prompt=persona_prompt,
         )
         run_id = f"personal-{uuid4()}"
         result = await GraphExecutor(

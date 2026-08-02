@@ -21,6 +21,16 @@ class SourceMetadata(BaseModel):
     visibility: KnowledgeVisibility
     public_summary: str | None = None
     public_url: AnyHttpUrl | None = None
+    public_questions: list[str] = Field(
+        default_factory=list,
+        max_length=12,
+        description="访客可见的推荐问题，驱动前端主题区；每条不超过 120 字符。",
+    )
+    topics: list[str] = Field(
+        default_factory=list,
+        max_length=12,
+        description="主题标签，用于 /api/topics 分组展示。",
+    )
 
     @model_validator(mode="after")
     def validate_public_metadata(self) -> "SourceMetadata":
@@ -54,3 +64,32 @@ class HealthResponse(BaseModel):
 
     status: str = "ok"
     service: str = "personal-agent"
+
+
+class ProfileResponse(BaseModel):
+    """Visitor-safe identity for the digital twin, driven by the profile document."""
+
+    name: str = Field(min_length=1)
+    monogram: str = Field(default="AI", min_length=1, max_length=4)
+    role: str = Field(default="", max_length=120)
+    github: str | None = None
+    greeting: str = Field(default="", max_length=240)
+    style: str = Field(default="", max_length=240)
+    covered_topics: list[str] = Field(default_factory=list, max_length=24)
+
+
+class TopicItem(BaseModel):
+    """One knowledge source presented as a clickable topic in the frontend."""
+
+    source_id: str
+    title: str
+    summary: str
+    url: AnyHttpUrl | None = None
+    questions: list[str] = Field(default_factory=list)
+
+
+class TopicGroup(BaseModel):
+    """Knowledge sources grouped by project for the frontend topics panel."""
+
+    project: str
+    topics: list[TopicItem] = Field(default_factory=list)

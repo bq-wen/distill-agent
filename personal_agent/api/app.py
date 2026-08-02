@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 
 from personal_agent.application.contracts import RunResponse, SubmitMessage
+from personal_agent.application.profile import list_topic_groups, load_profile
 from personal_agent.application.runs import (
     PersonalRun,
     PersonalRunScheduler,
@@ -16,7 +17,8 @@ from personal_agent.application.runs import (
     QueueFullError,
     RunConflictError,
 )
-from personal_agent.contracts import HealthResponse
+from personal_agent.contracts import HealthResponse, ProfileResponse, TopicGroup
+from personal_agent.knowledge.store import KnowledgeStore
 
 
 def _run_response(run: PersonalRun) -> RunResponse:
@@ -32,6 +34,7 @@ def create_app(
     *,
     scheduler: PersonalRunScheduler | None = None,
     run_store: PersonalRunStore | None = None,
+    knowledge_store: KnowledgeStore | None = None,
     close_resources: Callable[[], Awaitable[None]] | None = None,
     static_directory: Path | None = None,
 ) -> FastAPI:
@@ -57,6 +60,21 @@ def create_app(
     @app.get("/health", response_model=HealthResponse, tags=["system"])
     async def health() -> HealthResponse:
         return HealthResponse()
+
+    @app.get("/api/profile", response_model=ProfileResponse, tags=["profile"])
+    async def get_profile() -> ProfileResponse:
+        if knowledge_store is None:
+            raise HTTPException(status_code=503, detail="知识库尚未配置")
+        profile = load_profile(knowledge_store)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="尚未载入身份文档（knowledge/profile.md）")
+        return ProfileResponse(**profile.model_dump())
+
+    @app.get("/api/topics", response_model=list[TopicGroup], tags=["profile"])
+    async def get_topics() -> list[TopicGroup]:
+        if knowledge_store is None:
+            raise HTTPException(status_code=503, detail="知识库尚未配置")
+        return list_topic_groups(knowledge_store.list_sources())
 
     @app.post(
         "/api/conversations/{conversation_id}/messages",
