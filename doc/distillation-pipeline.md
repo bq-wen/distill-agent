@@ -26,11 +26,13 @@ SourceLoader → Cleaner → Extractor(LLM) → Structurer → ContentRouter →
 | 节点 | 输入 → 输出 | 关键行为 |
 |---|---|---|
 | SourceLoader | 目录 → 原始文档列表 | 识别 md/txt/json，记录 `source_file` 溯源路径 |
-| Cleaner | 原始文档 → 干净文本 | 去聊天元信息、表情、PII 标记；统一编码 |
+| Cleaner | 原始文档 → 干净文本 | 格式去噪（BOM/\r\n/空行/聊天时间戳行） |
 | Extractor (LLM) | 干净文本 → `KnowledgeAtom[]` | 提炼语句/QA 对/事实；输出 JSON 带置信度；涉他隐私与闲聊丢弃 |
 | Structurer | 原子 → Markdown 文档 | front matter（source_id/project/visibility/public_summary/...） |
 | AuditGate | 文档 → 审批产物 | 写 `data/audit/*.json`，触发 `REQUIRE_APPROVAL` 暂停 |
 | Indexer | 批准的文档 → SQLite | 复用 `PersonalKnowledgeService.index_document`（embedding + FTS） |
+
+> **脱敏边界（诚实标注）**：当前 Cleaner 只做格式去噪；手机号、邮箱、他人姓名等 PII 的剔除依赖提炼 prompt 的规则（"丢弃…明显涉他人隐私的信息"）与人工审批闸门，**没有程序级 PII 检测**。输入含敏感信息前请自行预清洗；程序级 PII 检测是后续增强点。
 
 ## 3. 知识原子（核心契约）
 
@@ -60,15 +62,17 @@ class KnowledgeAtom(BaseModel):
 
 ```bash
 # 全量蒸馏（产物先落 audit，批准后才入库）
-python3.12 -m personal_agent.distillation.cli distill --input knowledge/examples/raw --database data/knowledge.db
+python3.12 -m personal_agent.distillation.cli run --input knowledge/examples/raw --database data/knowledge.db
 
 # 增量：只处理内容变化的文件（哈希记录在 data/distill/state.json）
-python3.12 -m personal_agent.distillation.cli distill --input ... --incremental
+python3.12 -m personal_agent.distillation.cli run --input ... --database data/knowledge.db --incremental
 
-# 审批
-python3.12 -m personal_agent.distillation.cli approve <run_id> --all approved
-python3.12 -m personal_agent.distillation.cli approve <run_id> --atom <atom_id> rejected --note "涉隐私"
+# 审批（通过 / 驳回）
+python3.12 -m personal_agent.distillation.cli approve --run <run_id> --database data/knowledge.db
+python3.12 -m personal_agent.distillation.cli approve --run <run_id> --database data/knowledge.db --reject
 ```
+
+`run_id` 只允许字母、数字、`-`、`_`（它是 audit 文件名与 SQLite 主键，非法字符在入口、参数模型、工具三层都会被拒绝）。
 
 ## 6. 输入格式优先级
 

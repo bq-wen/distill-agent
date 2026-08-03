@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from personal_agent.api.app import create_app
+from personal_agent.api.rate_limit import RateLimiter
 from personal_agent.application.conversations import SQLiteConversationStore
 from personal_agent.application.runs import PersonalRunScheduler, PersonalRunStore
 from personal_agent.application.service import PersonalAgentService
@@ -63,7 +64,8 @@ def build_resources(settings: ApplicationSettings) -> ProductionResources:
 def create_production_app(settings: ApplicationSettings | None = None) -> FastAPI:
     """Uvicorn factory. Run with ``--factory`` so secrets are read at startup."""
 
-    resources = build_resources(settings or ApplicationSettings.from_environment())
+    resolved_settings = settings or ApplicationSettings.from_environment()
+    resources = build_resources(resolved_settings)
     static_directory = Path(__file__).parents[2] / "frontend_dist"
     return create_app(
         scheduler=resources.scheduler,
@@ -71,4 +73,5 @@ def create_production_app(settings: ApplicationSettings | None = None) -> FastAP
         knowledge_store=resources.knowledge_store,
         close_resources=resources.close,
         static_directory=static_directory if static_directory.is_dir() else None,
+        rate_limiter=RateLimiter(limit=resolved_settings.rate_limit_per_minute),
     )

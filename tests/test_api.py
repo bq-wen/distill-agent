@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from personal_agent.api.rate_limit import RateLimiter
 from personal_agent.application.contracts import AgentAnswer
 from personal_agent.application.runs import PersonalRunScheduler, PersonalRunStore
 from personal_agent.api.app import create_app
@@ -104,6 +105,48 @@ def test_app_can_serve_built_frontend_entry(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert "Personal Agent" in response.text
+
+
+def test_api_rejects_non_canonical_conversation_and_run_ids(tmp_path: Path) -> None:
+    store = PersonalRunStore(tmp_path / "runs.db")
+    scheduler = PersonalRunScheduler(store, ImmediateAnswerer(), worker_count=1, max_queue_size=2)
+    with TestClient(create_app(scheduler=scheduler, run_store=store)) as client:
+        # 非法字符与超长 ID 不应进入存储层（路径穿越由 URL 规范化先拦截为 404）。
+        assert client.post(
+            "/api/conversations/bad%40id/messages", json={"question": "hi"}
+        ).status_code == 422
+        assert client.post(
+            "/api/conversations/" + "x" * 100 + "/messages", json={"question": "hi"}
+        ).status_code == 422
+        assert client.get("/api/runs/..%2F..%2Fetc%2Fpasswd").status_code == 404
+        assert client.get("/api/runs/bad%40run").status_code == 422
+        assert client.get("/api/runs/" + "a" * 200).status_code == 422
+    store.close()
+
+
+def test_api_rate_limits_submissions_per_client(tmp_path: Path) -> None:
+    store = PersonalRunStore(tmp_path / "runs.db")
+    limiter = RateLimiter(limit=2, window_seconds=60)
+    scheduler = PersonalRunScheduler(store, ImmediateAnswerer(), worker_count=1, max_queue_size=10)
+    with TestClient(create_app(scheduler=scheduler, run_store=store, rate_limiter=limiter)) as client:
+        assert client.post("/api/conversations/tab-1/messages", json={"question": "one"}).status_code == 202
+        assert client.post("/api/conversations/tab-2/messages", json={"question": "two"}).status_code == 202
+        third = client.post("/api/conversations/tab-3/messages", json={"question": "three"})
+        assert third.status_code == 429
+        assert "频繁" in third.json()["detail"]
+    store.close()
+
+
+def test_rate_limiter_cleanup_drops_expired_keys() -> None:
+    limiter = RateLimiter(limit=5, window_seconds=0.05)
+    assert limiter.allow("client-a")
+    import time
+
+    time.sleep(0.06)
+    assert len(limiter._hits) == 1
+    limiter.cleanup()
+    assert limiter._hits == {}
+    assert limiter.allow("client-a")
 
 
 class ImmediateAnswerer:

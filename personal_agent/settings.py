@@ -34,6 +34,7 @@ class ApplicationSettings:
     queue_size: int
     conversation_ttl: timedelta
     minimum_semantic_score: float
+    rate_limit_per_minute: int
 
     @classmethod
     def from_environment(cls) -> "ApplicationSettings":
@@ -58,4 +59,5 @@ class ApplicationSettings:
             queue_size=_positive_int("PERSONAL_AGENT_QUEUE_SIZE", 20),
             conversation_ttl=timedelta(hours=ttl_hours),
             minimum_semantic_score=_score("PERSONAL_AGENT_MINIMUM_SEMANTIC_SCORE", 0.35),
+            rate_limit_per_minute=_positive_int("PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE", 30),
         )

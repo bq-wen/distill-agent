@@ -41,6 +41,8 @@
 
 对应工具：`search_personal_keywords`（FTS5）/ `search_personal_semantic`（向量）。
 
+**已知限制（中文）**：FTS5 默认 `unicode61` 分词把连续汉字当整体 token——查询与正文的断词不一致时（如查"工具安全"、正文是"工具调用安全"）关键词召回会落空；英文/数字专有名词（WenGraph、ToolGuard）命中稳定。中文语义召回由向量检索兜底。如需更强中文关键词召回，可换 jieba 分词或 n-gram 索引（增强点）。
+
 ## 4. Chunking（分块）
 
 `knowledge/chunking.py`：按 Markdown 标题分块，每块带 heading 上下文，保证：

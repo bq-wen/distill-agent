@@ -57,7 +57,7 @@ search_personal_keywords(query, limit=5)   # 关键词：SQLite FTS5 精确匹�
 - 个人经历/事实必须来自检索结果，**资料不足时明确说"资料没覆盖，建议问本人"，绝不编造**
 - 通用技术问题可以答，但不等同于个人经历；私密信息说明不在公开范围
 
-目标态：persona 从 `knowledge/profile.md` 动态生成（见 serving-generalization 子任务）。
+> 说明：persona 是提示词级软约束——模型组织回答时能看到检索到的私有正文，理论上可能复述其中内容。引用卡片（元数据）是硬边界，正文边界依赖 persona 提示与部署隔离（内网/限流）；如需硬保证，应在出站前做脱敏或摘要审核。
 
 ## 5. 身份与推荐问题（数据驱动）
 
@@ -88,7 +88,7 @@ A: 同一会话同时提交多条消息会冲突（一个会话同一时刻只�
 ## 8. 代码阅读路线
 
 ```
-frontend/src/main.tsx          → 前端全貌（134 行，读 10 分钟）
+frontend/src/main.tsx          → 前端全貌（180 行，读 10 分钟）
 personal_agent/api/app.py      → HTTP 边界与状态码语义
 personal_agent/application/runs.py → 队列/worker/持久化
 personal_agent/application/graph.py → 图装配与 persona

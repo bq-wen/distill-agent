@@ -1,6 +1,7 @@
 """SQLite persistence for private chunks and visitor-safe source metadata."""
 
 import json
+import re
 import sqlite3
 from pathlib import Path
 from threading import RLock
@@ -190,8 +191,6 @@ class KnowledgeStore:
 
 
 def _search_tokens(query: str) -> list[str]:
-    import re
-
     return re.findall(r"[A-Za-z_][A-Za-z0-9_]*|[\u4e00-\u9fff]+|\d+", query.lower())
 
 

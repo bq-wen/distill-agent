@@ -2,8 +2,13 @@ import asyncio
 import json
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
+from personal_agent.distillation.contracts import AuditArtifact
 from personal_agent.distillation.graph import build_distillation_graph
 from personal_agent.distillation.runner import approve_run, build_context, run_pipeline
+from personal_agent.distillation.tools import WriteAuditArtifactTool
 from personal_agent.knowledge.embedding import HashEmbeddingProvider
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.knowledge.store import KnowledgeStore
@@ -64,6 +69,40 @@ def _scripted_context(tmp_path: Path, model: ChatModel):
         hash_embedding=True,
         chat_model=model,
     )
+
+
+def test_run_id_whitelist_blocks_path_traversal(tmp_path: Path) -> None:
+    """run_id 拼进 audit 文件名：非法字符必须在入口、参数模型与工具三层被拦截。"""
+
+    # 契约层：AuditArtifact 拒绝含路径分隔符的 run_id。
+    with pytest.raises(ValidationError):
+        AuditArtifact(
+            run_id="../../etc/passwd",
+            created_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        )
+
+    # 工具层：即使绕过参数模型，execute 也不会把文件写到 audit 目录之外。
+    audit_dir = tmp_path / "audit"
+    tool = WriteAuditArtifactTool(audit_dir)
+
+    class BadArgs:
+        run_id = "../../escape"
+        audit_json = '{"run_id":"../../escape"}'
+
+    with pytest.raises(ValueError, match="非法 Run ID"):
+        asyncio.run(tool.execute(BadArgs()))
+    assert not (tmp_path / "escape.json").exists()
+
+    # runner 入口：run 与 approve 都拒绝非法 run_id，错误信息清晰。
+    model = ScriptedDistillModel([_atoms_response("我用 ToolGuard 治理工具调用。")])
+    ctx = _scripted_context(tmp_path, model)
+    try:
+        with pytest.raises(ValueError, match="非法 Run ID"):
+            run_pipeline(ctx, run_id="../evil", yes=True)
+        with pytest.raises(ValueError, match="非法 Run ID"):
+            approve_run(ctx, run_id="../../evil", approved=True)
+    finally:
+        ctx.close()
 
 
 def test_pipeline_pauses_for_approval_and_indexes_after_approve(tmp_path: Path) -> None:

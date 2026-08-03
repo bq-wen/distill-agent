@@ -7,12 +7,13 @@ so review can happen in a separate process.
 
 import asyncio
 import hashlib
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from personal_agent.distillation.contracts import AuditArtifact, DistillState
+from personal_agent.distillation.contracts import RUN_ID_PATTERN, AuditArtifact, DistillState
 from personal_agent.distillation.graph import build_distillation_graph
 from personal_agent.knowledge.embedding import HashEmbeddingProvider, SentenceTransformersEmbeddingProvider
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
@@ -203,6 +204,15 @@ def _noop_result(run_id: str, message: str) -> RunResult:
     return RunResult(status=RunStatus.COMPLETED, state=State(message=message))
 
 
+def _validate_run_id(run_id: str) -> None:
+    """Run ID 会用作 SQLite 主键与 audit 文件名，只允许安全字符。"""
+
+    if not re.fullmatch(RUN_ID_PATTERN, run_id):
+        raise ValueError(
+            f"非法 Run ID: {run_id!r}；只能包含字母、数字、-、_，且以字母或数字开头（最长 128 字符）"
+        )
+
+
 def run_pipeline(
     ctx: DistillContext,
     *,
@@ -213,6 +223,7 @@ def run_pipeline(
     """Execute the full distillation pipeline with approval gates."""
 
     run_id = run_id or f"distill-{uuid4()}"
+    _validate_run_id(run_id)
     only_files: set[str] | None = None
     if incremental:
         only_files = _changed_files(ctx)
@@ -228,6 +239,7 @@ def run_pipeline(
 def approve_run(ctx: DistillContext, *, run_id: str, approved: bool) -> RunResult:
     """Resume a pending run from its persisted checkpoint."""
 
+    _validate_run_id(run_id)
     executor = _new_executor(ctx, run_id=run_id)
     result = asyncio.run(executor.resume(run_id, approved))
     while result.status is RunStatus.PENDING_APPROVAL:

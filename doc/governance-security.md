@@ -48,7 +48,7 @@ LLM/节点申请工具
 
 ## 3. 能力授权细节（现状代码）
 
-`graph.py` 中：
+展示链路 `application/graph.py`：
 
 ```python
 guard = ToolGuard(CapabilityPolicy(), RiskPolicy(ExecutionMode.UNATTENDED))
@@ -59,8 +59,23 @@ guard.capability_policy.grant(llm.name, {Capability.READ_CODE})
 ```
 
 - 只有 LLM 节点被授予 `READ_CODE` 能力
-- 两个检索工具注册为 LOW 风险只读
-- 目前只有一条链路，治理模型已就位；蒸馏链路加入后复用同一套机制
+- 两个检索工具注册为 LOW 风险只读 → UNATTENDED 模式全自动放行
+
+蒸馏链路 `distillation/graph.py` 复用同一套门卫：
+
+```python
+guard = ToolGuard(CapabilityPolicy(), RiskPolicy(ExecutionMode.SUPERVISED))
+guard.capability_policy.register_tool(ToolSpec(name=audit_tool.name,
+    required_capabilities={Capability.WRITE_SANDBOX}, risk_level=RiskLevel.MEDIUM))
+guard.capability_policy.register_tool(ToolSpec(name=index_tool.name,
+    required_capabilities={Capability.DATABASE_WRITE}, risk_level=RiskLevel.HIGH))
+guard.capability_policy.grant(audit_gate.name, {Capability.WRITE_SANDBOX})
+guard.capability_policy.grant(indexer.name, {Capability.DATABASE_WRITE})
+```
+
+- 写审计产物（MEDIUM）与写知识库（HIGH）在 SUPERVISED 下强制 `REQUIRE_APPROVAL`
+- 同一套门卫、两种模式参数，即"一个运行时，两张子图"的治理落点
+- `run_id` 只允许安全字符（`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`），防止审计文件名路径穿越
 
 ## 4. 公开引用合同（安全边界）
 

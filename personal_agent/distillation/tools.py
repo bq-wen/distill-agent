@@ -6,17 +6,18 @@ before anything touches disk.
 """
 
 import json
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from personal_agent.distillation.contracts import DistillDocument
+from personal_agent.distillation.contracts import RUN_ID_PATTERN, DistillDocument
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.wengraph_runtime import Tool, ToolEffect
 
 
 class WriteAuditArguments(BaseModel):
-    run_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1, pattern=RUN_ID_PATTERN)
     audit_json: str = Field(min_length=1)
 
 
@@ -32,6 +33,9 @@ class WriteAuditArtifactTool(Tool):
         self.audit_dir = Path(audit_dir)
 
     async def execute(self, args: WriteAuditArguments) -> str:
+        # 最后一道防线：run_id 会拼进文件路径，禁止任何路径分隔符逃逸 audit 目录。
+        if not re.fullmatch(RUN_ID_PATTERN, args.run_id):
+            raise ValueError(f"非法 Run ID: {args.run_id!r}；只能包含字母、数字、-、_")
         path = self.audit_dir / f"{args.run_id}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(args.audit_json, encoding="utf-8")

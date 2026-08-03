@@ -6,7 +6,7 @@
 
 - 基于自研 WenGraph 的受控 ReAct 图：只读检索工具经 CapabilityPolicy、RiskPolicy 与 ToolGuard 约束。
 - Markdown 私有资料的本地混合检索：Sentence Transformers 语义检索和 SQLite FTS5 关键词检索。
-- 面向访客的安全引用合同：原始 Markdown、文件路径和私有内容不会进入 HTTP 响应。
+- 面向访客的安全引用合同：引用卡片仅由审核过的公开元数据（`public_summary`/`public_url`）构成；原始 Markdown、本地路径和内部结构不出现在任何 API 字段中。
 - 无登录的标签页会话：前端 `sessionStorage` 隔离会话，后端 SQLite 临时记忆 24 小时过期。
 - 可控服务容量：持久化 Run、固定 async Worker、有界队列、HTTP 轮询和单进程部署约束。
 
@@ -119,6 +119,8 @@ docker compose up -d
 
 - `.env` 被 Git 忽略，绝不提交模型 Key；若 Key 曾出现在聊天记录或日志中，请立即在模型服务商控制台轮换。
 - 公开引用只使用知识文档 front matter 中审核过的 `public_summary` 与 `public_url`。
+- **回答正文是提示词级软约束**：引用卡片（元数据）是硬边界，但模型组织回答时会看到检索到的私有正文，理论上可能复述其中内容（persona 提示要求资料不足时明说、不编造，但无法在运行时强制执行）。公开部署前请配合内网/限流，并在回答出站前做脱敏或摘要审核，才能得到硬保证。
+- 提交接口按客户端做内存限流（`PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE`，默认 30 次/分）；限流状态随进程，扩展前需换共享限流器。
 - 当前队列仅支持一个 Uvicorn worker。横向扩展前必须引入共享调度层。
 
 ## Verification

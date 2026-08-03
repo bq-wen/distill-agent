@@ -13,6 +13,9 @@ from pydantic import BaseModel, Field, model_validator
 AtomKind = Literal["statement", "qa_pair", "fact"]
 SourceType = Literal["resume", "project_readme", "git_history", "chat_export", "notes", "manual"]
 
+# 共享的 Run ID 白名单：阻止路径穿越（audit 文件名由 run_id 拼接）与异常长度输入。
+RUN_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+
 
 class KnowledgeAtom(BaseModel):
     """One distilled, first-person knowledge unit with full provenance."""
@@ -58,7 +61,7 @@ class DistillDocument(BaseModel):
 class AuditArtifact(BaseModel):
     """Reviewable record of one distillation run; the only write that enters the audit dir."""
 
-    run_id: str
+    run_id: str = Field(min_length=1, pattern=RUN_ID_PATTERN)
     created_at: datetime
     atoms: list[KnowledgeAtom] = Field(default_factory=list)
     documents: list[DistillDocument] = Field(default_factory=list)

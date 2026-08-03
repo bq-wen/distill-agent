@@ -74,7 +74,9 @@ class PersonalAgentService:
             if match.score >= self.minimum_semantic_score
         ]
         keywords = self.knowledge.search_keywords(question, limit=3)
-        by_chunk = {match.chunk.chunk_id: match for match in [*semantic, *keywords]}
+        # 语义命中（已过阈值）优先于 FTS 精确命中：关键词匹配无法区分分数高低，
+        # 若后写覆盖会丢掉语义排序信息。
+        by_chunk = {match.chunk.chunk_id: match for match in [*keywords, *semantic]}
         return list(by_chunk.values())
 
     @staticmethod

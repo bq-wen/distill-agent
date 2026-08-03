@@ -216,35 +216,58 @@ class PersonalRunScheduler:
         max_queue_size: int = 20,
         ttl: timedelta = timedelta(hours=24),
         conversation_store: SQLiteConversationStore | None = None,
+        cleanup_interval: timedelta = timedelta(minutes=30),
     ) -> None:
         if worker_count < 1 or max_queue_size < 1 or ttl <= timedelta():
             raise ValueError("worker_count、max_queue_size 和 ttl 必须为正数")
+        if cleanup_interval <= timedelta():
+            raise ValueError("cleanup_interval 必须为正数")
         self.store = store
         self.answerer = answerer
         self.ttl = ttl
+        self.cleanup_interval = cleanup_interval
         self.conversation_store = conversation_store
         self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=max_queue_size)
         self._worker_count = worker_count
         self._workers: list[asyncio.Task] = []
+        self._cleanup_task: asyncio.Task | None = None
         self._admission_lock = asyncio.Lock()
         self._scheduled_run_ids: set[str] = set()
 
     async def start(self) -> None:
         if self._workers:
             return
-        self.store.expire_before(utc_now() - self.ttl)
-        if self.conversation_store is not None:
-            self.conversation_store.expire_before(utc_now() - self.ttl)
+        self._run_cleanup()
         self.store.mark_running_as_interrupted()
         self._fill_queue_from_store()
         self._workers = [asyncio.create_task(self._worker(), name=f"personal-agent-worker-{index}") for index in range(self._worker_count)]
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop(), name="personal-agent-cleanup")
 
     async def stop(self) -> None:
+        if self._cleanup_task is not None:
+            self._cleanup_task.cancel()
+            await asyncio.gather(self._cleanup_task, return_exceptions=True)
+            self._cleanup_task = None
         for worker in self._workers:
             worker.cancel()
         if self._workers:
             await asyncio.gather(*self._workers, return_exceptions=True)
         self._workers = []
+
+    async def _cleanup_loop(self) -> None:
+        """Periodic expiry so long-running processes do not accumulate stale rows."""
+
+        while True:
+            await asyncio.sleep(self.cleanup_interval.total_seconds())
+            self._run_cleanup()
+
+    def _run_cleanup(self) -> None:
+        """Expire runs and conversation events older than the TTL."""
+
+        cutoff = utc_now() - self.ttl
+        self.store.expire_before(cutoff)
+        if self.conversation_store is not None:
+            self.conversation_store.expire_before(cutoff)
 
     async def submit(self, conversation_id: str, question: str) -> PersonalRun:
         if not self._workers:
