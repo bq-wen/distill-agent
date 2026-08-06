@@ -80,7 +80,7 @@ const fallbackQuestions = [
   "你的知识覆盖哪些主题？",
   "你如何保证回答不编造？",
 ];
-const sessionKey = "personal-agent-conversation-id";
+const sessionKey = "distill-agent-conversation-id";
 
 function conversationId() {
   const current = sessionStorage.getItem(sessionKey);

@@ -109,7 +109,7 @@ python3.12 -m personal_agent.distillation.cli approve --run distill-xxxx --datab
 cp .env.example .env
 # 填写 OPENAI_API_KEY、OPENAI_BASE_URL、OPENAI_MODEL
 docker compose build
-docker compose run --rm personal-agent python -m personal_agent.knowledge.cli /app/knowledge --database /app/data/knowledge.db
+docker compose run --rm distill-agent python -m personal_agent.knowledge.cli /app/knowledge --database /app/data/knowledge.db
 docker compose up -d
 ```
 

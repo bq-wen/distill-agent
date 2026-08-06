@@ -1,4 +1,4 @@
-# Personal Agent Repository Instructions
+# Distill Agent Repository Instructions
 
 `personal_agent` is an application layer built on the fixed `vendor/wengraph`
 submodule. Do not edit framework source from this repository.
