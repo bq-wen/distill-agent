@@ -164,6 +164,7 @@ docker compose up -d
 | `PERSONAL_AGENT_CONVERSATION_TTL_HOURS` | `24` | 临时会话保留时长 |
 | `PERSONAL_AGENT_MINIMUM_SEMANTIC_SCORE` | `0.35` | 语义检索阈值 |
 | `PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE` | `30` | 每客户端提交限流 |
+| `PERSONAL_AGENT_DAILY_TOKEN_BUDGET` | `20000` | 展示链路每日 LLM token 预算（占位值；超限后新提交返回 429） |
 | `HF_ENDPOINT` / `HF_HUB_OFFLINE` | - | 模型下载镜像/离线（国内网络） |
 
 ## Project Structure

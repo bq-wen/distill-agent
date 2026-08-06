@@ -3,10 +3,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from personal_agent.api.app import create_app
 from personal_agent.api.rate_limit import RateLimiter
 from personal_agent.application.contracts import AgentAnswer
 from personal_agent.application.runs import PersonalRunScheduler, PersonalRunStore
-from personal_agent.api.app import create_app
 from personal_agent.knowledge.documents import parse_markdown_document
 from personal_agent.knowledge.embedding import HashEmbeddingProvider
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
@@ -74,12 +74,7 @@ def test_topics_endpoint_returns_grouped_questions(tmp_path: Path) -> None:
     assert response.status_code == 200
     body = response.json()
     assert any(group["project"] == "Personal" for group in body)
-    questions = [
-        question
-        for group in body
-        for topic in group["topics"]
-        for question in topic["questions"]
-    ]
+    questions = [question for group in body for topic in group["topics"] for question in topic["questions"]]
     assert "你的知识覆盖哪些主题？" in questions
 
 
@@ -112,12 +107,8 @@ def test_api_rejects_non_canonical_conversation_and_run_ids(tmp_path: Path) -> N
     scheduler = PersonalRunScheduler(store, ImmediateAnswerer(), worker_count=1, max_queue_size=2)
     with TestClient(create_app(scheduler=scheduler, run_store=store)) as client:
         # 非法字符与超长 ID 不应进入存储层（路径穿越由 URL 规范化先拦截为 404）。
-        assert client.post(
-            "/api/conversations/bad%40id/messages", json={"question": "hi"}
-        ).status_code == 422
-        assert client.post(
-            "/api/conversations/" + "x" * 100 + "/messages", json={"question": "hi"}
-        ).status_code == 422
+        assert client.post("/api/conversations/bad%40id/messages", json={"question": "hi"}).status_code == 422
+        assert client.post("/api/conversations/" + "x" * 100 + "/messages", json={"question": "hi"}).status_code == 422
         assert client.get("/api/runs/..%2F..%2Fetc%2Fpasswd").status_code == 404
         assert client.get("/api/runs/bad%40run").status_code == 422
         assert client.get("/api/runs/" + "a" * 200).status_code == 422

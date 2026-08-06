@@ -9,19 +9,11 @@ from personal_agent.distillation.contracts import AuditArtifact, DistillState
 from personal_agent.distillation.graph import build_distillation_graph
 from personal_agent.distillation.runner import approve_run, build_context, run_pipeline
 from personal_agent.distillation.tools import WriteAuditArtifactTool
-from personal_agent.knowledge.embedding import HashEmbeddingProvider
-from personal_agent.knowledge.retrieval import PersonalKnowledgeService
-from personal_agent.knowledge.store import KnowledgeStore
 from personal_agent.wengraph_runtime import (
     ChatModel,
     GraphExecutor,
     ModelResponse,
     RunStatus,
-    SQLiteArtifactStore,
-    SQLiteCheckpointStore,
-    SQLiteDatabase,
-    SQLiteRunStore,
-    SQLiteToolExecutionStore,
     State,
 )
 
@@ -38,8 +30,7 @@ class ScriptedDistillModel(ChatModel):
 
 def _atoms_response(*contents: str) -> ModelResponse:
     atoms = [
-        {"content": content, "kind": "statement", "confidence": 0.9, "source_type": "notes"}
-        for content in contents
+        {"content": content, "kind": "statement", "confidence": 0.9, "source_type": "notes"} for content in contents
     ]
     return ModelResponse(text=json.dumps({"atoms": atoms}, ensure_ascii=False))
 
@@ -325,10 +316,12 @@ def test_incremental_run_removes_deleted_source_and_keeps_state_current(tmp_path
 
 
 def test_legacy_incremental_state_migrates_without_duplicate_source(tmp_path: Path) -> None:
-    model = ScriptedDistillModel([
-        _atoms_response("我有一条可迁移的知识。"),
-        _atoms_response("我有另一条可迁移的知识。"),
-    ])
+    model = ScriptedDistillModel(
+        [
+            _atoms_response("我有一条可迁移的知识。"),
+            _atoms_response("我有另一条可迁移的知识。"),
+        ]
+    )
     ctx = _scripted_context(tmp_path, model)
     try:
         legacy = {
@@ -349,10 +342,12 @@ def test_legacy_incremental_state_migrates_without_duplicate_source(tmp_path: Pa
 
 
 def test_distilled_metadata_does_not_expose_input_path(tmp_path: Path) -> None:
-    model = ScriptedDistillModel([
-        _atoms_response("我会保护项目输入路径。"),
-        _atoms_response("我会保护聊天输入路径并保持来源可追溯。"),
-    ])
+    model = ScriptedDistillModel(
+        [
+            _atoms_response("我会保护项目输入路径。"),
+            _atoms_response("我会保护聊天输入路径并保持来源可追溯。"),
+        ]
+    )
     ctx = _scripted_context(tmp_path, model)
     try:
         result = run_pipeline(ctx, run_id="distill-metadata-1", yes=True)

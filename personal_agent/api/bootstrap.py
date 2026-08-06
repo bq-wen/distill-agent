@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from personal_agent.api.app import create_app
 from personal_agent.api.rate_limit import RateLimiter
 from personal_agent.application.conversations import SQLiteConversationStore
+from personal_agent.application.quota import QuotaChatModel, TokenQuotaStore
 from personal_agent.application.runs import PersonalRunScheduler, PersonalRunStore
 from personal_agent.application.service import PersonalAgentService
 from personal_agent.knowledge.embedding import SentenceTransformersEmbeddingProvider
@@ -26,9 +27,11 @@ class ProductionResources:
     knowledge_store: KnowledgeStore
     conversation_store: SQLiteConversationStore
     chat_model: OpenAIChatModel
+    quota_store: TokenQuotaStore
 
     async def close(self) -> None:
         await self.chat_model.aclose()
+        self.quota_store.close()
         self.knowledge_store.close()
         self.conversation_store.close()
         self.run_store.close()
@@ -39,7 +42,12 @@ def build_resources(settings: ApplicationSettings) -> ProductionResources:
     knowledge_store = KnowledgeStore(settings.knowledge_database)
     conversation_store = SQLiteConversationStore(settings.conversations_database)
     run_store = PersonalRunStore(settings.runs_database)
-    model = OpenAIChatModel(OpenAIChatConfig.from_environment())
+    quota_store = TokenQuotaStore(settings.quota_database)
+    model = QuotaChatModel(
+        OpenAIChatModel(OpenAIChatConfig.from_environment()),
+        quota_store,
+        daily_budget=settings.daily_token_budget,
+    )
     knowledge = PersonalKnowledgeService(
         knowledge_store,
         SentenceTransformersEmbeddingProvider(settings.embedding_model, device=settings.embedding_device),
@@ -58,7 +66,9 @@ def build_resources(settings: ApplicationSettings) -> ProductionResources:
         ttl=settings.conversation_ttl,
         conversation_store=conversation_store,
     )
-    return ProductionResources(scheduler, run_store, knowledge_store, conversation_store, model)
+    return ProductionResources(
+        scheduler, run_store, knowledge_store, conversation_store, model, quota_store=quota_store
+    )
 
 
 def create_production_app(settings: ApplicationSettings | None = None) -> FastAPI:
@@ -74,4 +84,6 @@ def create_production_app(settings: ApplicationSettings | None = None) -> FastAP
         close_resources=resources.close,
         static_directory=static_directory if static_directory.is_dir() else None,
         rate_limiter=RateLimiter(limit=resolved_settings.rate_limit_per_minute),
+        quota_store=resources.quota_store,
+        daily_token_budget=resolved_settings.daily_token_budget,
     )

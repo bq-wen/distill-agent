@@ -1,14 +1,15 @@
 import asyncio
 from pathlib import Path
 
-from personal_agent.application.service import PersonalAgentService
+from llm import ChatModel, ModelResponse
+
 from personal_agent.application.conversations import SQLiteConversationStore
+from personal_agent.application.service import PersonalAgentService
 from personal_agent.knowledge.documents import parse_markdown_document
 from personal_agent.knowledge.embedding import HashEmbeddingProvider
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.knowledge.store import KnowledgeStore
 from personal_agent.wengraph_runtime import ToolRequest
-from llm import ChatModel, ModelResponse
 
 
 class ScriptedChatModel(ChatModel):
@@ -73,9 +74,7 @@ def test_personal_agent_tells_model_when_personal_evidence_is_missing(tmp_path: 
     model = ScriptedChatModel([ModelResponse(text="这是一般技术说明，不代表我的个人经历。")])
 
     asyncio.run(
-        PersonalAgentService(
-            _knowledge_service(tmp_path), model, minimum_semantic_score=0.95
-        ).answer(
+        PersonalAgentService(_knowledge_service(tmp_path), model, minimum_semantic_score=0.95).answer(
             "你上一家公司为什么离职？", conversation_id="tab-1"
         )
     )
@@ -85,13 +84,13 @@ def test_personal_agent_tells_model_when_personal_evidence_is_missing(tmp_path: 
 
 def test_personal_agent_reuses_persisted_tab_conversation_history(tmp_path: Path) -> None:
     conversation_store = SQLiteConversationStore(tmp_path / "conversations.db")
-    model = ScriptedChatModel([
-        ModelResponse(text="第一轮回答"),
-        ModelResponse(text="第二轮回答"),
-    ])
-    service = PersonalAgentService(
-        _knowledge_service(tmp_path), model, conversation_store=conversation_store
+    model = ScriptedChatModel(
+        [
+            ModelResponse(text="第一轮回答"),
+            ModelResponse(text="第二轮回答"),
+        ]
     )
+    service = PersonalAgentService(_knowledge_service(tmp_path), model, conversation_store=conversation_store)
     try:
         asyncio.run(service.answer("介绍 WenGraph", conversation_id="tab-1"))
         asyncio.run(service.answer("它如何控制工具？", conversation_id="tab-1"))
@@ -100,7 +99,10 @@ def test_personal_agent_reuses_persisted_tab_conversation_history(tmp_path: Path
         assert any(message.content == "介绍 WenGraph" for message in second_messages)
         assert any(message.content == "第一轮回答" for message in second_messages)
         assert [event.role for event in conversation_store.list_all("tab-1")] == [
-            "user", "assistant", "user", "assistant"
+            "user",
+            "assistant",
+            "user",
+            "assistant",
         ]
     finally:
         conversation_store.close()

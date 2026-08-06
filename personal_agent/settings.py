@@ -28,6 +28,7 @@ class ApplicationSettings:
     knowledge_database: Path
     runs_database: Path
     conversations_database: Path
+    quota_database: Path
     embedding_model: str
     embedding_device: str | None
     queue_workers: int
@@ -35,6 +36,7 @@ class ApplicationSettings:
     conversation_ttl: timedelta
     minimum_semantic_score: float
     rate_limit_per_minute: int
+    daily_token_budget: int
 
     @classmethod
     def from_environment(cls) -> "ApplicationSettings":
@@ -51,6 +53,7 @@ class ApplicationSettings:
             conversations_database=Path(
                 os.environ.get("PERSONAL_AGENT_CONVERSATIONS_DB", data_directory / "conversations.db")
             ),
+            quota_database=Path(os.environ.get("PERSONAL_AGENT_QUOTA_DB", data_directory / "quota.db")),
             embedding_model=embedding_model,
             embedding_device=embedding_device,
             queue_workers=_positive_int("PERSONAL_AGENT_QUEUE_WORKERS", 2),
@@ -58,4 +61,5 @@ class ApplicationSettings:
             conversation_ttl=timedelta(hours=ttl_hours),
             minimum_semantic_score=_score("PERSONAL_AGENT_MINIMUM_SEMANTIC_SCORE", 0.35),
             rate_limit_per_minute=_positive_int("PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE", 30),
+            daily_token_budget=_positive_int("PERSONAL_AGENT_DAILY_TOKEN_BUDGET", 20_000),
         )

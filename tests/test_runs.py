@@ -55,7 +55,11 @@ def test_cleanup_expires_stale_runs_and_conversation_events(tmp_path: Path) -> N
         conversation_store = SQLiteConversationStore(tmp_path / "conversations.db")
         answerer = ControlledAnswerer()
         scheduler = PersonalRunScheduler(
-            run_store, answerer, worker_count=1, max_queue_size=2, ttl=timedelta(hours=24),
+            run_store,
+            answerer,
+            worker_count=1,
+            max_queue_size=2,
+            ttl=timedelta(hours=24),
             conversation_store=conversation_store,
         )
         try:
@@ -66,14 +70,26 @@ def test_cleanup_expires_stale_runs_and_conversation_events(tmp_path: Path) -> N
                 ((utc_now() - timedelta(hours=25)).isoformat(), stale.run_id),
             )
             run_store.connection.commit()
-            conversation_store.append(ConversationEvent(
-                event_id="e1", conversation_id="tab-2", run_id=stale.run_id,
-                role="user", content="old", created_at=utc_now() - timedelta(hours=25),
-            ))
-            conversation_store.append(ConversationEvent(
-                event_id="e2", conversation_id="tab-1", run_id=fresh.run_id,
-                role="user", content="new", created_at=utc_now(),
-            ))
+            conversation_store.append(
+                ConversationEvent(
+                    event_id="e1",
+                    conversation_id="tab-2",
+                    run_id=stale.run_id,
+                    role="user",
+                    content="old",
+                    created_at=utc_now() - timedelta(hours=25),
+                )
+            )
+            conversation_store.append(
+                ConversationEvent(
+                    event_id="e2",
+                    conversation_id="tab-1",
+                    run_id=fresh.run_id,
+                    role="user",
+                    content="new",
+                    created_at=utc_now(),
+                )
+            )
 
             scheduler._run_cleanup()
 

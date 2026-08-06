@@ -59,6 +59,15 @@ class PublicCitation(BaseModel):
         )
 
 
+class QuotaResponse(BaseModel):
+    """Daily token usage vs budget (anti cost-burn status)."""
+
+    used_today: int
+    daily_budget: int
+    remaining: int
+    exhausted: bool
+
+
 class HealthResponse(BaseModel):
     """Stable health response for local development and container probes."""
 
