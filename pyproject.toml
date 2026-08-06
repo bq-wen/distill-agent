@@ -1,0 +1,20 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [".venv", "vendor", "frontend", "data", "dist", "build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+exclude = ["\\.venv", "vendor", "frontend", "data", "dist", "build", "tests"]
+ignore_missing_imports = true
+warn_unused_ignores = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# vendor import boundary: sys.path must be patched before imports
+"personal_agent/wengraph_runtime.py" = ["E402"]

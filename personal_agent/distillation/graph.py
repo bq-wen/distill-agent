@@ -94,9 +94,22 @@ def build_distillation_graph(
 
     graph = Graph()
     for node in (
-        loader, cleaner, extractor, structurer, content_router, audit_gate, indexer,
-        guard_node, policy_router, tool_node, approval_end, deny_end,
-        continue_router, abort_end, completion, finish,
+        loader,
+        cleaner,
+        extractor,
+        structurer,
+        content_router,
+        audit_gate,
+        indexer,
+        guard_node,
+        policy_router,
+        tool_node,
+        approval_end,
+        deny_end,
+        continue_router,
+        abort_end,
+        completion,
+        finish,
     ):
         graph.add_node(node)
     graph.add_edge(Edge(loader, cleaner))
@@ -119,10 +132,25 @@ def build_distillation_graph(
     graph.add_edge(Edge(completion, finish))
     graph.add_edge(Edge(abort_end, finish))
 
-    _apply_policies(graph, loader=loader, cleaner=cleaner, extractor=extractor, structurer=structurer,
-                    content_router=content_router, audit_gate=audit_gate, indexer=indexer, guard_node=guard_node,
-                    policy_router=policy_router, tool_node=tool_node, approval_end=approval_end, deny_end=deny_end,
-                    continue_router=continue_router, abort_end=abort_end, completion=completion, finish=finish)
+    _apply_policies(
+        graph,
+        loader=loader,
+        cleaner=cleaner,
+        extractor=extractor,
+        structurer=structurer,
+        content_router=content_router,
+        audit_gate=audit_gate,
+        indexer=indexer,
+        guard_node=guard_node,
+        policy_router=policy_router,
+        tool_node=tool_node,
+        approval_end=approval_end,
+        deny_end=deny_end,
+        continue_router=continue_router,
+        abort_end=abort_end,
+        completion=completion,
+        finish=finish,
+    )
     graph.set_start_node(loader)
     graph.set_end_node(finish)
     return graph, [audit_tool, index_tool]
@@ -142,16 +170,22 @@ def _apply_policies(graph: Graph, **nodes: object) -> None:
     graph.set_write_policy(
         nodes["audit_gate"],
         {
-            StateField.ARTIFACTS, StateField.MESSAGE, StateField.PENDING_TOOL_REQUEST,
-            StateField.PENDING_TOOL_REQUESTS, StateField.TOOL_REQUESTER,
+            StateField.ARTIFACTS,
+            StateField.MESSAGE,
+            StateField.PENDING_TOOL_REQUEST,
+            StateField.PENDING_TOOL_REQUESTS,
+            StateField.TOOL_REQUESTER,
         },
     )
     graph.set_read_policy(nodes["indexer"], {StateField.ARTIFACTS, StateField.LAST_TOOL_RESULT, StateField.MESSAGE})
     graph.set_write_policy(
         nodes["indexer"],
         {
-            StateField.ARTIFACTS, StateField.MESSAGE, StateField.PENDING_TOOL_REQUEST,
-            StateField.PENDING_TOOL_REQUESTS, StateField.TOOL_REQUESTER,
+            StateField.ARTIFACTS,
+            StateField.MESSAGE,
+            StateField.PENDING_TOOL_REQUEST,
+            StateField.PENDING_TOOL_REQUESTS,
+            StateField.TOOL_REQUESTER,
         },
     )
     graph.set_read_policy(
@@ -169,7 +203,9 @@ def _apply_policies(graph: Graph, **nodes: object) -> None:
         nodes["deny_end"],
         {StateField.PENDING_TOOL_REQUEST, StateField.PENDING_TOOL_REQUESTS, StateField.POLICY_DECISION},
     )
-    graph.set_write_policy(nodes["deny_end"], {StateField.LAST_TOOL_RESULT, StateField.TOOL_HISTORY, StateField.MESSAGE})
+    graph.set_write_policy(
+        nodes["deny_end"], {StateField.LAST_TOOL_RESULT, StateField.TOOL_HISTORY, StateField.MESSAGE}
+    )
     graph.set_read_policy(nodes["continue_router"], {StateField.LAST_TOOL_RESULT})
     graph.set_write_policy(nodes["continue_router"], set())
     graph.set_read_policy(nodes["abort_end"], {StateField.LAST_TOOL_RESULT})

@@ -55,12 +55,16 @@ def build_persona_prompt(profile: ProfileData | None) -> str:
         identity_lines.append(f"本人的知识覆盖主题：{'、'.join(profile.covered_topics)}。")
     if profile.style:
         identity_lines.append(f"回答风格遵循本人偏好：{profile.style}。")
-    return "\n".join(identity_lines) + """
+    return (
+        "\n".join(identity_lines)
+        + """
 
 所有个人经历、贡献、项目事实和个人观点必须以当前消息或检索工具返回的授权资料为依据，并在回答
 末尾标明使用过的来源标题。资料不足时明确说明“我的当前资料没有覆盖这部分，建议面试时向本人确认”，
 绝不能补全或猜测。一般技术问题可以用通用知识回答，但必须明确它不等同于本人的个人经历。对于私人、
-敏感、未公开或保密信息，说明该信息不在公开资料范围内。检索工具只读且只能用于授权个人资料。""" + RETRIEVAL_CONVERGENCE_PROMPT
+敏感、未公开或保密信息，说明该信息不在公开资料范围内。检索工具只读且只能用于授权个人资料。"""
+        + RETRIEVAL_CONVERGENCE_PROMPT
+    )
 
 
 def load_profile(store: KnowledgeStore) -> ProfileData | None:
@@ -86,7 +90,4 @@ def list_topic_groups(sources: list[SourceMetadata]) -> list[TopicGroup]:
                 questions=source.public_questions,
             )
         )
-    return [
-        TopicGroup(project=project, topics=topics)
-        for project, topics in sorted(grouped.items())
-    ]
+    return [TopicGroup(project=project, topics=topics) for project, topics in sorted(grouped.items())]

@@ -10,7 +10,7 @@ base. Pipeline payloads travel through the ArtifactStore as refs in ``state``.
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -38,8 +38,10 @@ EXTRACTION_PROMPT = """你是个人知识蒸馏器。把用户提供的原始材
 2. 每条原子必须是第一人称陈述（“我做了/我选择/我认为”）、面试问答对（qa_pair）或客观事实（fact）。
 3. qa_pair 的 content 必须包含问题与回答两行，格式：问题：xxx\\n回答：yyy。优先把可复述的经历提炼成面试问答。
 4. 丢弃：情绪化闲聊、问候、表情、无关内容、明显涉他人隐私的信息。
-5. 每条原子填写 kind（statement/qa_pair/fact）、confidence（0-1，依据信息明确度）、source_type（resume/project_readme/git_history/chat_export/notes/manual）。
-6. 只输出 JSON，不要解释，格式：{"atoms": [{"content": "...", "kind": "statement", "confidence": 0.9, "source_type": "notes"}, ...]}"""
+5. 每条原子填写 kind（statement/qa_pair/fact）、confidence（0-1，依据信息明确度）、
+   source_type（resume/project_readme/git_history/chat_export/notes/manual）。
+6. 只输出 JSON，不要解释，格式：{"atoms": [{"content": "...", "kind": "statement", "confidence": 0.9,
+   "source_type": "notes"}, ...]}"""
 
 
 def _manifest_ref(state: StateView, kind: str) -> str | None:
@@ -149,7 +151,9 @@ class SourceLoaderNode(Node):
                     raw_artifact_id=ref.artifact_id,
                 )
             )
-        manifest_ref = _put_json(self.artifact_store, "manifest", [entry.model_dump() for entry in entries], summary="源文件清单")
+        manifest_ref = _put_json(
+            self.artifact_store, "manifest", [entry.model_dump() for entry in entries], summary="源文件清单"
+        )
         refs[manifest_ref.artifact_id] = manifest_ref
         return StatePatch(artifacts=refs, message=f"载入 {len(files)} 个源文件")
 
@@ -170,7 +174,9 @@ class CleanerNode(Node):
             ref = self.artifact_store.put_text("clean", cleaned_text, summary=entry.path)
             refs[ref.artifact_id] = ref  # type: ignore[assignment]
             cleaned.append(entry.model_copy(update={"clean_artifact_id": ref.artifact_id}))
-        manifest_ref = _put_json(self.artifact_store, "clean_manifest", [entry.model_dump() for entry in cleaned], summary="清洗后清单")
+        manifest_ref = _put_json(
+            self.artifact_store, "clean_manifest", [entry.model_dump() for entry in cleaned], summary="清洗后清单"
+        )
         refs[manifest_ref.artifact_id] = manifest_ref  # type: ignore[assignment]
         return StatePatch(artifacts=refs, message=f"清洗 {len(cleaned)} 个源文件")
 
@@ -187,7 +193,7 @@ class ExtractorNode(Node):
         entries = _load_manifest(self.artifact_store, state, "clean_manifest")
         atoms: list[KnowledgeAtom] = []
         skipped = 0
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for entry in entries:
             text = self.artifact_store.get_text(entry.clean_artifact_id)
             if not text.strip():
@@ -202,7 +208,12 @@ class ExtractorNode(Node):
             parsed = self._parse_atoms(response.text, entry, now)
             atoms.extend(parsed["atoms"])
             skipped += parsed["skipped"]
-        atoms_ref = _put_json(self.artifact_store, "atoms", [atom.model_dump(mode="json") for atom in atoms], summary=f"{len(atoms)} 个知识原子")
+        atoms_ref = _put_json(
+            self.artifact_store,
+            "atoms",
+            [atom.model_dump(mode="json") for atom in atoms],
+            summary=f"{len(atoms)} 个知识原子",
+        )
         return StatePatch(
             artifacts={atoms_ref.artifact_id: atoms_ref},
             message=f"提炼 {len(atoms)} 个知识原子（跳过 {skipped} 条）",
@@ -257,14 +268,16 @@ class StructurerNode(Node):
         atoms_ref = _manifest_ref(state, "atoms")
         if atoms_ref is None:
             raise ValueError("缺少知识原子产物")
-        atoms = [
-            KnowledgeAtom.model_validate(item)
-            for item in json.loads(self.artifact_store.get_text(atoms_ref))
-        ]
+        atoms = [KnowledgeAtom.model_validate(item) for item in json.loads(self.artifact_store.get_text(atoms_ref))]
         if not atoms:
             return StatePatch(message="没有可结构化的知识原子，流程结束")
         documents = self._build_documents(atoms)
-        docs_ref = _put_json(self.artifact_store, "documents", [doc.model_dump() for doc in documents], summary=f"{len(documents)} 篇知识文档")
+        docs_ref = _put_json(
+            self.artifact_store,
+            "documents",
+            [doc.model_dump() for doc in documents],
+            summary=f"{len(documents)} 篇知识文档",
+        )
         return StatePatch(
             artifacts={docs_ref.artifact_id: docs_ref},
             message=f"生成 {len(documents)} 篇知识文档",
@@ -298,7 +311,11 @@ class StructurerNode(Node):
                     f"title: {title}",
                     "visibility: private",
                     f"public_summary: {public_summary}",
-                    *([f"public_questions:" + "".join(f"\n  - {question}" for question in questions)] if questions else []),
+                    *(
+                        ["public_questions:" + "".join(f"\n  - {question}" for question in questions)]
+                        if questions
+                        else []
+                    ),
                     "---",
                 ]
             )
@@ -350,7 +367,7 @@ class AuditGateNode(Node):
         documents = _load_artifact_list(self.artifact_store, state, "documents", DistillDocument, required=False)
         payload = AuditArtifact(
             run_id=self.run_id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             atoms=atoms,
             documents=documents,
             deleted_source_ids=self.deleted_source_ids,

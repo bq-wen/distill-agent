@@ -2,7 +2,6 @@
 
 import re
 
-
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 
 
@@ -42,7 +41,9 @@ def _split_section(heading: str | None, section: str, max_chars: int) -> list[tu
             if current:
                 result.append((heading, current))
                 current = ""
-            result.extend((heading, paragraph[start : start + max_chars]) for start in range(0, len(paragraph), max_chars))
+            result.extend(
+                (heading, paragraph[start : start + max_chars]) for start in range(0, len(paragraph), max_chars)
+            )
             continue
         candidate = paragraph if not current else f"{current}\n\n{paragraph}"
         if len(candidate) > max_chars:

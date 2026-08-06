@@ -29,7 +29,6 @@ from personal_agent.wengraph_runtime import (
 )
 
 
-
 def build_personal_graph(
     knowledge: PersonalKnowledgeService,
     chat_model: ChatModel,
@@ -78,15 +77,22 @@ def build_personal_graph(
     graph.set_read_policy(
         llm,
         {
-            StateField.MESSAGE, StateField.CONVERSATION_ID, StateField.PENDING_TOOL_REQUEST,
-            StateField.PENDING_TOOL_REQUESTS, StateField.LAST_TOOL_RESULT, StateField.TOOL_HISTORY,
+            StateField.MESSAGE,
+            StateField.CONVERSATION_ID,
+            StateField.PENDING_TOOL_REQUEST,
+            StateField.PENDING_TOOL_REQUESTS,
+            StateField.LAST_TOOL_RESULT,
+            StateField.TOOL_HISTORY,
         },
     )
     graph.set_write_policy(
         llm,
         {
-            StateField.MESSAGE, StateField.NEXT_ACTION, StateField.PENDING_TOOL_REQUEST,
-            StateField.PENDING_TOOL_REQUESTS, StateField.TOOL_REQUESTER,
+            StateField.MESSAGE,
+            StateField.NEXT_ACTION,
+            StateField.PENDING_TOOL_REQUEST,
+            StateField.PENDING_TOOL_REQUESTS,
+            StateField.TOOL_REQUESTER,
         },
     )
     graph.set_read_policy(router, {StateField.NEXT_ACTION})

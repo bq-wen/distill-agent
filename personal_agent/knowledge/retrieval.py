@@ -38,7 +38,7 @@ class PersonalKnowledgeService:
                 content_hash=_content_hash(content),
                 embedding=vector,
             )
-            for ordinal, ((heading, content), vector) in enumerate(zip(chunks, vectors))
+            for ordinal, ((heading, content), vector) in enumerate(zip(chunks, vectors, strict=True))
         ]
         self.store.replace_source(document.metadata, records)
         return len(records)
@@ -90,4 +90,4 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
     right_norm = math.sqrt(sum(value * value for value in right))
     if left_norm == 0 or right_norm == 0:
         raise ValueError("不能计算零向量的余弦相似度")
-    return sum(a * b for a, b in zip(left, right)) / (left_norm * right_norm)
+    return sum(a * b for a, b in zip(left, right, strict=True)) / (left_norm * right_norm)

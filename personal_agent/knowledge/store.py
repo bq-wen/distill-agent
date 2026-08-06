@@ -50,10 +50,7 @@ class KnowledgeStore:
     def _ensure_metadata_columns(self) -> None:
         """Add visitor-safe metadata columns to databases created before the template release."""
 
-        columns = {
-            row["name"]
-            for row in self.connection.execute("PRAGMA table_info(knowledge_sources)")
-        }
+        columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(knowledge_sources)")}
         for column in ("public_questions", "topics", "profile_json"):
             if column not in columns:
                 self.connection.execute(f"ALTER TABLE knowledge_sources ADD COLUMN {column} TEXT")
@@ -72,8 +69,12 @@ class KnowledgeStore:
             self.connection.execute(
                 "INSERT INTO knowledge_sources VALUES(?,?,?,?,?,?,?,?,?)",
                 (
-                    source.source_id, source.project, source.title, source.visibility.value,
-                    source.public_summary, str(source.public_url) if source.public_url else None,
+                    source.source_id,
+                    source.project,
+                    source.title,
+                    source.visibility.value,
+                    source.public_summary,
+                    str(source.public_url) if source.public_url else None,
                     json.dumps(source.public_questions, ensure_ascii=False) if source.public_questions else None,
                     json.dumps(source.topics, ensure_ascii=False) if source.topics else None,
                     self._profile_json(source),
@@ -84,8 +85,13 @@ class KnowledgeStore:
                     "INSERT INTO knowledge_chunks VALUES(?,?,?,?,?,?,?)",
                     [
                         (
-                            chunk.chunk_id, chunk.source_id, chunk.ordinal, chunk.heading,
-                            chunk.content, chunk.content_hash, json.dumps(chunk.embedding),
+                            chunk.chunk_id,
+                            chunk.source_id,
+                            chunk.ordinal,
+                            chunk.heading,
+                            chunk.content,
+                            chunk.content_hash,
+                            json.dumps(chunk.embedding),
                         )
                         for chunk in chunks
                     ],
@@ -103,9 +109,7 @@ class KnowledgeStore:
             return 0
         placeholders = ",".join("?" for _ in unique_ids)
         with self._lock, self.connection:
-            self.connection.execute(
-                f"DELETE FROM knowledge_chunk_fts WHERE source_id IN ({placeholders})", unique_ids
-            )
+            self.connection.execute(f"DELETE FROM knowledge_chunk_fts WHERE source_id IN ({placeholders})", unique_ids)
             cursor = self.connection.execute(
                 f"DELETE FROM knowledge_sources WHERE source_id IN ({placeholders})", unique_ids
             )
@@ -132,7 +136,9 @@ class KnowledgeStore:
             (expression, limit),
         ).fetchall()
         return [
-            RetrievalMatch(chunk=self._chunk_from_row(row), source=self._source_from_row(row), score=-row["score"], rank=index)
+            RetrievalMatch(
+                chunk=self._chunk_from_row(row), source=self._source_from_row(row), score=-row["score"], rank=index
+            )
             for index, row in enumerate(rows, start=1)
         ]
 
@@ -141,17 +147,13 @@ class KnowledgeStore:
 
         return [
             self._source_from_row(row)
-            for row in self.connection.execute(
-                "SELECT * FROM knowledge_sources ORDER BY project, source_id"
-            )
+            for row in self.connection.execute("SELECT * FROM knowledge_sources ORDER BY project, source_id")
         ]
 
     def get_source(self, source_id: str) -> SourceMetadata | None:
         """One source record, e.g. the profile document identified by ``source_id == 'profile'``."""
 
-        row = self.connection.execute(
-            "SELECT * FROM knowledge_sources WHERE source_id=?", (source_id,)
-        ).fetchone()
+        row = self.connection.execute("SELECT * FROM knowledge_sources WHERE source_id=?", (source_id,)).fetchone()
         return self._source_from_row(row) if row is not None else None
 
     def profile_data(self) -> dict[str, Any] | None:
@@ -190,16 +192,23 @@ class KnowledgeStore:
     @staticmethod
     def _chunk_from_row(row: sqlite3.Row) -> KnowledgeChunk:
         return KnowledgeChunk(
-            chunk_id=row["chunk_id"], source_id=row["source_id"], ordinal=row["ordinal"],
-            heading=row["heading"], content=row["content"], content_hash=row["content_hash"],
+            chunk_id=row["chunk_id"],
+            source_id=row["source_id"],
+            ordinal=row["ordinal"],
+            heading=row["heading"],
+            content=row["content"],
+            content_hash=row["content_hash"],
             embedding=json.loads(row["embedding_json"]),
         )
 
     @staticmethod
     def _source_from_row(row: sqlite3.Row) -> SourceMetadata:
         return SourceMetadata(
-            source_id=row["source_id"], project=row["project"], title=row["title"],
-            visibility=KnowledgeVisibility(row["visibility"]), public_summary=row["public_summary"],
+            source_id=row["source_id"],
+            project=row["project"],
+            title=row["title"],
+            visibility=KnowledgeVisibility(row["visibility"]),
+            public_summary=row["public_summary"],
             public_url=row["public_url"],
             public_questions=_load_json_list(row["public_questions"]),
             topics=_load_json_list(row["topics"]),

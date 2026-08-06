@@ -41,9 +41,7 @@ class ApplicationSettings:
         data_directory = Path(os.environ.get("PERSONAL_AGENT_DATA_DIR", "data"))
         ttl_hours = _positive_int("PERSONAL_AGENT_CONVERSATION_TTL_HOURS", 24)
         embedding_device = os.environ.get("PERSONAL_AGENT_EMBEDDING_DEVICE", "cpu").strip() or None
-        embedding_model = os.environ.get(
-            "PERSONAL_AGENT_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5"
-        ).strip()
+        embedding_model = os.environ.get("PERSONAL_AGENT_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5").strip()
         if not embedding_model:
             raise ValueError("PERSONAL_AGENT_EMBEDDING_MODEL 不能为空")
         return cls(

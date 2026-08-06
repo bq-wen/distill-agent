@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from personal_agent.contracts import PublicCitation
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.wengraph_runtime import Tool, ToolEffect
 
@@ -21,7 +22,7 @@ class _PersonalSearchTool(Tool):
 
     def __init__(self, knowledge: PersonalKnowledgeService) -> None:
         self.knowledge = knowledge
-        self.citations = []
+        self.citations: list[PublicCitation] = []
 
     def _render_matches(self, matches) -> str:
         if not matches:
@@ -33,9 +34,7 @@ class _PersonalSearchTool(Tool):
         sections = []
         for match in matches:
             heading = f"\n章节：{match.chunk.heading}" if match.chunk.heading else ""
-            sections.append(
-                f"[来源：{match.source.title} | {match.source.source_id}]{heading}\n{match.chunk.content}"
-            )
+            sections.append(f"[来源：{match.source.title} | {match.source.source_id}]{heading}\n{match.chunk.content}")
         return "\n\n".join(sections)
 
 

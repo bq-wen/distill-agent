@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from personal_agent.contracts import PublicCitation, SourceMetadata
 

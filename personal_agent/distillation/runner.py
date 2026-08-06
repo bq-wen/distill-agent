@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from personal_agent.distillation.contracts import DistillFileState, RUN_ID_PATTERN, AuditArtifact, DistillState
+from personal_agent.distillation.contracts import RUN_ID_PATTERN, AuditArtifact, DistillFileState, DistillState
 from personal_agent.distillation.graph import build_distillation_graph
 from personal_agent.distillation.nodes import legacy_source_id_for, source_id_for
 from personal_agent.knowledge.embedding import HashEmbeddingProvider, SentenceTransformersEmbeddingProvider
@@ -154,16 +154,12 @@ async def _run_pipeline(
     only_files: set[str] | None = None,
     deleted_source_ids: set[str] | None = None,
 ) -> RunResult:
-    executor = _new_executor(
-        ctx, run_id=run_id, only_files=only_files, deleted_source_ids=deleted_source_ids
-    )
+    executor = _new_executor(ctx, run_id=run_id, only_files=only_files, deleted_source_ids=deleted_source_ids)
     result = await executor.run(run_id=run_id, timeout_seconds=1800)
     while result.status is RunStatus.PENDING_APPROVAL:
         assert result.checkpoint is not None
         _print_pending(ctx, result)
-        if yes:
-            approved = True
-        elif approve is True:
+        if yes or approve is True:
             approved = True
         elif approve is False:
             approved = False
@@ -253,9 +249,7 @@ def _validate_run_id(run_id: str) -> None:
     """Run ID 会用作 SQLite 主键与 audit 文件名，只允许安全字符。"""
 
     if not re.fullmatch(RUN_ID_PATTERN, run_id):
-        raise ValueError(
-            f"非法 Run ID: {run_id!r}；只能包含字母、数字、-、_，且以字母或数字开头（最长 128 字符）"
-        )
+        raise ValueError(f"非法 Run ID: {run_id!r}；只能包含字母、数字、-、_，且以字母或数字开头（最长 128 字符）")
 
 
 def run_pipeline(
@@ -279,7 +273,11 @@ def run_pipeline(
             return _noop_result(run_id, "没有内容变化的文件，跳过本次蒸馏。")
     result = asyncio.run(
         _run_pipeline(
-            ctx, run_id=run_id, approve=None, yes=yes, only_files=only_files,
+            ctx,
+            run_id=run_id,
+            approve=None,
+            yes=yes,
+            only_files=only_files,
             deleted_source_ids=deleted_source_ids,
         )
     )
@@ -317,9 +315,7 @@ def _record_indexed_hashes(ctx: DistillContext) -> None:
         if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json"}:
             relative = str(path.relative_to(ctx.input_dir))
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            state.files[relative] = DistillFileState(
-                content_hash=digest, source_id=source_id_for(relative)
-            )
+            state.files[relative] = DistillFileState(content_hash=digest, source_id=source_id_for(relative))
     ctx.save_state(state)
 
 

@@ -30,7 +30,14 @@ class SQLiteConversationStore(ConversationStore):
         with self._lock, self.connection:
             self.connection.execute(
                 "INSERT INTO conversation_events VALUES(?,?,?,?,?,?)",
-                (event.event_id, event.conversation_id, event.run_id, event.role, event.content, event.created_at.isoformat()),
+                (
+                    event.event_id,
+                    event.conversation_id,
+                    event.run_id,
+                    event.role,
+                    event.content,
+                    event.created_at.isoformat(),
+                ),
             )
 
     def list_recent(self, conversation_id: str, limit: int) -> list[ConversationEvent]:
@@ -48,7 +55,9 @@ class SQLiteConversationStore(ConversationStore):
 
     def expire_before(self, cutoff: datetime) -> int:
         with self._lock, self.connection:
-            cursor = self.connection.execute("DELETE FROM conversation_events WHERE created_at<?", (cutoff.isoformat(),))
+            cursor = self.connection.execute(
+                "DELETE FROM conversation_events WHERE created_at<?", (cutoff.isoformat(),)
+            )
         return cursor.rowcount
 
     def close(self) -> None:
@@ -58,6 +67,10 @@ class SQLiteConversationStore(ConversationStore):
     @staticmethod
     def _event(row: sqlite3.Row) -> ConversationEvent:
         return ConversationEvent(
-            event_id=row["event_id"], conversation_id=row["conversation_id"], run_id=row["run_id"],
-            role=row["role"], content=row["content"], created_at=datetime.fromisoformat(row["created_at"]),
+            event_id=row["event_id"],
+            conversation_id=row["conversation_id"],
+            run_id=row["run_id"],
+            role=row["role"],
+            content=row["content"],
+            created_at=datetime.fromisoformat(row["created_at"]),
         )

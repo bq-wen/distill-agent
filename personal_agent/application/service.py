@@ -1,13 +1,20 @@
 """Single-turn application service used by the future queue worker."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
-from datetime import datetime, timedelta, timezone
 
 from personal_agent.application.contracts import AgentAnswer
 from personal_agent.application.graph import build_personal_graph
 from personal_agent.application.profile import build_persona_prompt, load_profile
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
-from personal_agent.wengraph_runtime import ChatModel, ConversationEvent, ConversationStore, GraphExecutor, RunStatus, State
+from personal_agent.wengraph_runtime import (
+    ChatModel,
+    ConversationEvent,
+    ConversationStore,
+    GraphExecutor,
+    RunStatus,
+    State,
+)
 
 
 class PersonalAgentService:
@@ -43,7 +50,9 @@ class PersonalAgentService:
         run_id = f"personal-{uuid4()}"
         result = await GraphExecutor(
             graph,
-            State(message=f"用户问题：{question.strip()}\n\n首轮资料检索：\n{evidence}", conversation_id=conversation_id),
+            State(
+                message=f"用户问题：{question.strip()}\n\n首轮资料检索：\n{evidence}", conversation_id=conversation_id
+            ),
             max_steps=24,
             max_tool_calls=4,
         ).run(run_id=run_id, timeout_seconds=90)
@@ -56,15 +65,27 @@ class PersonalAgentService:
             citations_by_id.update({citation.source_id: citation for citation in tool.citations})
         answer = AgentAnswer(text=result.state.message, citations=list(citations_by_id.values()))
         if self.conversation_store is not None:
-            now = datetime.now(timezone.utc)
-            self.conversation_store.append(ConversationEvent(
-                event_id=str(uuid4()), conversation_id=conversation_id, run_id=run_id,
-                role="user", content=question.strip(), created_at=now,
-            ))
-            self.conversation_store.append(ConversationEvent(
-                event_id=str(uuid4()), conversation_id=conversation_id, run_id=run_id,
-                role="assistant", content=answer.text, created_at=now + timedelta(microseconds=1),
-            ))
+            now = datetime.now(UTC)
+            self.conversation_store.append(
+                ConversationEvent(
+                    event_id=str(uuid4()),
+                    conversation_id=conversation_id,
+                    run_id=run_id,
+                    role="user",
+                    content=question.strip(),
+                    created_at=now,
+                )
+            )
+            self.conversation_store.append(
+                ConversationEvent(
+                    event_id=str(uuid4()),
+                    conversation_id=conversation_id,
+                    run_id=run_id,
+                    role="assistant",
+                    content=answer.text,
+                    created_at=now + timedelta(microseconds=1),
+                )
+            )
         return answer
 
     def _initial_matches(self, question: str):
@@ -84,6 +105,5 @@ class PersonalAgentService:
         if not matches:
             return "未召回直接相关资料。个人事实必须说明资料未覆盖，不得猜测。"
         return "\n\n".join(
-            f"[来源：{match.source.title} | {match.source.source_id}]\n{match.chunk.content}"
-            for match in matches
+            f"[来源：{match.source.title} | {match.source.source_id}]\n{match.chunk.content}" for match in matches
         )

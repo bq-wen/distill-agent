@@ -1,10 +1,9 @@
 """Persisted Run state and bounded single-process async scheduling."""
 
 import asyncio
-import json
 import sqlite3
-from datetime import datetime, timedelta, timezone
-from enum import Enum
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from pathlib import Path
 from threading import RLock
 from typing import Protocol
@@ -17,10 +16,10 @@ from personal_agent.application.conversations import SQLiteConversationStore
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-class PersonalRunStatus(str, Enum):
+class PersonalRunStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -98,13 +97,15 @@ class PersonalRunStore:
                 raise RunConflictError(f"会话已有未完成 Run: {active['run_id']}")
             now = utc_now()
             record = PersonalRun(
-                run_id=f"personal-{uuid4()}", conversation_id=conversation_id, question=question,
-                status=PersonalRunStatus.QUEUED, created_at=now, updated_at=now,
+                run_id=f"personal-{uuid4()}",
+                conversation_id=conversation_id,
+                question=question,
+                status=PersonalRunStatus.QUEUED,
+                created_at=now,
+                updated_at=now,
             )
             with self.connection:
-                self.connection.execute(
-                    "INSERT INTO personal_runs VALUES(?,?,?,?,?,?,?,?,?)", self._values(record)
-                )
+                self.connection.execute("INSERT INTO personal_runs VALUES(?,?,?,?,?,?,?,?,?)", self._values(record))
         return record
 
     def get(self, run_id: str) -> PersonalRun | None:
@@ -134,8 +135,11 @@ class PersonalRunStore:
             cursor = self.connection.execute(
                 "UPDATE personal_runs SET status=?, updated_at=?, completed_at=?, error_message=? WHERE status=?",
                 (
-                    PersonalRunStatus.INTERRUPTED.value, now.isoformat(), now.isoformat(),
-                    "服务进程在 Run 执行期间退出，请重新提交问题", PersonalRunStatus.RUNNING.value,
+                    PersonalRunStatus.INTERRUPTED.value,
+                    now.isoformat(),
+                    now.isoformat(),
+                    "服务进程在 Run 执行期间退出，请重新提交问题",
+                    PersonalRunStatus.RUNNING.value,
                 ),
             )
         return cursor.rowcount
@@ -147,8 +151,12 @@ class PersonalRunStore:
                 "UPDATE personal_runs SET status=?, updated_at=?, completed_at=?, answer_json=NULL, error_message=? "
                 "WHERE updated_at<? AND status!=?",
                 (
-                    PersonalRunStatus.EXPIRED.value, now.isoformat(), now.isoformat(), "临时会话已过期",
-                    cutoff.isoformat(), PersonalRunStatus.EXPIRED.value,
+                    PersonalRunStatus.EXPIRED.value,
+                    now.isoformat(),
+                    now.isoformat(),
+                    "临时会话已过期",
+                    cutoff.isoformat(),
+                    PersonalRunStatus.EXPIRED.value,
                 ),
             )
         return cursor.rowcount
@@ -170,17 +178,24 @@ class PersonalRunStore:
             completed_at = now if target in {PersonalRunStatus.COMPLETED, PersonalRunStatus.FAILED} else None
             updated = existing.model_copy(
                 update={
-                    "status": target, "updated_at": now, "completed_at": completed_at,
-                    "answer": answer, "error_message": error_message,
+                    "status": target,
+                    "updated_at": now,
+                    "completed_at": completed_at,
+                    "answer": answer,
+                    "error_message": error_message,
                 }
             )
             with self.connection:
                 self.connection.execute(
-                    "UPDATE personal_runs SET status=?, updated_at=?, completed_at=?, answer_json=?, error_message=? WHERE run_id=?",
+                    "UPDATE personal_runs SET status=?, updated_at=?, completed_at=?, "
+                    "answer_json=?, error_message=? WHERE run_id=?",
                     (
-                        updated.status.value, updated.updated_at.isoformat(),
+                        updated.status.value,
+                        updated.updated_at.isoformat(),
                         updated.completed_at.isoformat() if updated.completed_at else None,
-                        updated.answer.model_dump_json() if updated.answer else None, updated.error_message, run_id,
+                        updated.answer.model_dump_json() if updated.answer else None,
+                        updated.error_message,
+                        run_id,
                     ),
                 )
         return updated
@@ -188,15 +203,25 @@ class PersonalRunStore:
     @staticmethod
     def _values(record: PersonalRun) -> tuple:
         return (
-            record.run_id, record.conversation_id, record.question, record.status.value,
-            record.created_at.isoformat(), record.updated_at.isoformat(), None, None, None,
+            record.run_id,
+            record.conversation_id,
+            record.question,
+            record.status.value,
+            record.created_at.isoformat(),
+            record.updated_at.isoformat(),
+            None,
+            None,
+            None,
         )
 
     @staticmethod
     def _from_row(row: sqlite3.Row) -> PersonalRun:
         return PersonalRun(
-            run_id=row["run_id"], conversation_id=row["conversation_id"], question=row["question"],
-            status=PersonalRunStatus(row["status"]), created_at=datetime.fromisoformat(row["created_at"]),
+            run_id=row["run_id"],
+            conversation_id=row["conversation_id"],
+            question=row["question"],
+            status=PersonalRunStatus(row["status"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
             completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
             answer=AgentAnswer.model_validate_json(row["answer_json"]) if row["answer_json"] else None,
@@ -240,7 +265,10 @@ class PersonalRunScheduler:
         self._run_cleanup()
         self.store.mark_running_as_interrupted()
         self._fill_queue_from_store()
-        self._workers = [asyncio.create_task(self._worker(), name=f"personal-agent-worker-{index}") for index in range(self._worker_count)]
+        self._workers = [
+            asyncio.create_task(self._worker(), name=f"personal-agent-worker-{index}")
+            for index in range(self._worker_count)
+        ]
         self._cleanup_task = asyncio.create_task(self._cleanup_loop(), name="personal-agent-cleanup")
 
     async def stop(self) -> None:

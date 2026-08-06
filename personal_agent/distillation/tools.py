@@ -59,10 +59,7 @@ class IndexDocumentsTool(Tool):
         self.knowledge = knowledge
 
     async def execute(self, args: IndexDocumentsArguments) -> str:
-        documents = [
-            DistillDocument.model_validate(item)
-            for item in json.loads(args.documents_json)
-        ]
+        documents = [DistillDocument.model_validate(item) for item in json.loads(args.documents_json)]
         deleted = self.knowledge.store.delete_sources(args.deleted_source_ids)
         total_chunks = 0
         indexed = 0
