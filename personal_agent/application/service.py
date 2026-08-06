@@ -44,7 +44,7 @@ class PersonalAgentService:
         result = await GraphExecutor(
             graph,
             State(message=f"用户问题：{question.strip()}\n\n首轮资料检索：\n{evidence}", conversation_id=conversation_id),
-            max_steps=12,
+            max_steps=24,
             max_tool_calls=4,
         ).run(run_id=run_id, timeout_seconds=90)
         if result.status is not RunStatus.COMPLETED:

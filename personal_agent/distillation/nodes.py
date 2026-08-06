@@ -90,7 +90,16 @@ def _source_type_for(path: Path, suffix: str) -> str:
     return "notes"
 
 
-def _source_id_for(source_file: str) -> str:
+def source_id_for(source_file: str) -> str:
+    """Stable opaque ID for a distilled input; visitor metadata must not reveal its path."""
+
+    digest = hashlib.sha256(source_file.encode("utf-8")).hexdigest()[:16]
+    return f"distilled-{digest}"
+
+
+def legacy_source_id_for(source_file: str) -> str:
+    """ID used before opaque source IDs, retained only for incremental cleanup."""
+
     stem = Path(source_file).stem.lower()
     slug = re.sub(r"[^a-z0-9]+", "-", stem).strip("-") or "source"
     digest = hashlib.sha1(source_file.encode("utf-8")).hexdigest()[:8]
@@ -121,7 +130,7 @@ class SourceLoaderNode(Node):
             and path.suffix.lower() in {".md", ".txt", ".json"}
             and (self.only_files is None or str(path.relative_to(self.input_dir)) in self.only_files)
         )
-        if not files:
+        if not files and self.only_files is None:
             raise ValueError("增量模式下没有内容变化的文件，无需蒸馏")
 
         entries: list[SourceFile] = []
@@ -164,10 +173,6 @@ class CleanerNode(Node):
         manifest_ref = _put_json(self.artifact_store, "clean_manifest", [entry.model_dump() for entry in cleaned], summary="清洗后清单")
         refs[manifest_ref.artifact_id] = manifest_ref  # type: ignore[assignment]
         return StatePatch(artifacts=refs, message=f"清洗 {len(cleaned)} 个源文件")
-
-
-def _existing_refs(state: StateView) -> set[str]:
-    return set((state.artifacts or {}).keys())
 
 
 class ExtractorNode(Node):
@@ -272,10 +277,10 @@ class StructurerNode(Node):
             by_file.setdefault(atom.source_file, []).append(atom)
         documents: list[DistillDocument] = []
         for source_file, file_atoms in sorted(by_file.items()):
-            source_id = _source_id_for(source_file)
-            project = Path(source_file).parts[0] if len(Path(source_file).parts) > 1 else "Personal"
-            title = f"{Path(source_file).stem} 蒸馏笔记"
-            public_summary = f"由 {source_file} 蒸馏而来，覆盖 {len(file_atoms)} 个知识点。"
+            source_id = source_id_for(source_file)
+            project = "Approved Knowledge"
+            title = f"审核知识笔记 {source_id.removeprefix('distilled-')[:8]}"
+            public_summary = f"经审核的个人知识资料，覆盖 {len(file_atoms)} 个知识点。"
             body: list[str] = []
             questions: list[str] = []
             for atom in file_atoms:
@@ -315,8 +320,9 @@ class ContentRouter(RouterNode):
 
     name = "content_router"
 
-    def __init__(self, artifact_store) -> None:
+    def __init__(self, artifact_store, *, deleted_source_ids: set[str] | None = None) -> None:
         self.artifact_store = artifact_store
+        self.deleted_source_ids = deleted_source_ids or set()
 
     async def route(self, state: StateView) -> str:
         atoms_ref = _manifest_ref(state, "atoms")
@@ -326,7 +332,7 @@ class ContentRouter(RouterNode):
             payload = json.loads(self.artifact_store.get_text(atoms_ref))
         except (ValueError, KeyError):
             return "skip"
-        return "gate" if payload else "skip"
+        return "gate" if payload or self.deleted_source_ids else "skip"
 
 
 class AuditGateNode(Node):
@@ -334,18 +340,20 @@ class AuditGateNode(Node):
 
     name = "audit_gate_node"
 
-    def __init__(self, artifact_store, run_id: str) -> None:
+    def __init__(self, artifact_store, run_id: str, *, deleted_source_ids: set[str] | None = None) -> None:
         self.artifact_store = artifact_store
         self.run_id = run_id
+        self.deleted_source_ids = sorted(deleted_source_ids or set())
 
     async def execute(self, state: StateView) -> StatePatch:
         atoms = _load_artifact_list(self.artifact_store, state, "atoms", KnowledgeAtom)
-        documents = _load_artifact_list(self.artifact_store, state, "documents", DistillDocument)
+        documents = _load_artifact_list(self.artifact_store, state, "documents", DistillDocument, required=False)
         payload = AuditArtifact(
             run_id=self.run_id,
             created_at=datetime.now(timezone.utc),
             atoms=atoms,
             documents=documents,
+            deleted_source_ids=self.deleted_source_ids,
         )
         ref = self.artifact_store.put_text("audit", payload.model_dump_json(), summary="审计产物")
         request = ToolRequest(
@@ -357,7 +365,10 @@ class AuditGateNode(Node):
             artifacts={ref.artifact_id: ref},
             pending_tool_requests=[request],
             tool_requester=self.name,
-            message=f"等待批准写入审计产物（{len(atoms)} 原子 / {len(documents)} 文档）",
+            message=(
+                f"等待批准写入审计产物（{len(atoms)} 原子 / {len(documents)} 文档"
+                f" / {len(self.deleted_source_ids)} 个删除）"
+            ),
         )
 
 
@@ -366,19 +377,21 @@ class IndexerNode(Node):
 
     name = "indexer_node"
 
-    def __init__(self, artifact_store) -> None:
+    def __init__(self, artifact_store, *, deleted_source_ids: set[str] | None = None) -> None:
         self.artifact_store = artifact_store
+        self.deleted_source_ids = sorted(deleted_source_ids or set())
 
     async def execute(self, state: StateView) -> StatePatch:
-        if state.last_tool_result is not None and not state.last_tool_result.ok:
-            return StatePatch(message="审计产物写入失败，跳过索引")
-        documents = _load_artifact_list(self.artifact_store, state, "documents", DistillDocument)
-        if not documents:
+        documents = _load_artifact_list(self.artifact_store, state, "documents", DistillDocument, required=False)
+        if not documents and not self.deleted_source_ids:
             return StatePatch(message="没有可索引的文档，流程结束")
         request = ToolRequest(
             call_id=str(uuid4()),
             tool_name="index_documents",
-            arguments={"documents_json": json.dumps([doc.model_dump() for doc in documents], ensure_ascii=False)},
+            arguments={
+                "documents_json": json.dumps([doc.model_dump() for doc in documents], ensure_ascii=False),
+                "deleted_source_ids": self.deleted_source_ids,
+            },
         )
         return StatePatch(
             pending_tool_requests=[request],
@@ -387,10 +400,12 @@ class IndexerNode(Node):
         )
 
 
-def _load_artifact_list(artifact_store, state: StateView, kind: str, model) -> list:
+def _load_artifact_list(artifact_store, state: StateView, kind: str, model, *, required: bool = True) -> list:
     ref_id = _manifest_ref(state, kind)
     if ref_id is None:
-        raise ValueError(f"状态中缺少 {kind} 产物")
+        if required:
+            raise ValueError(f"状态中缺少 {kind} 产物")
+        return []
     return [model.model_validate(item) for item in json.loads(artifact_store.get_text(ref_id))]
 
 

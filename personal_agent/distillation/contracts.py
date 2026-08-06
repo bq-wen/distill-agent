@@ -8,7 +8,7 @@ what was written to the knowledge base after human approval.
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 AtomKind = Literal["statement", "qa_pair", "fact"]
 SourceType = Literal["resume", "project_readme", "git_history", "chat_export", "notes", "manual"]
@@ -65,12 +65,31 @@ class AuditArtifact(BaseModel):
     created_at: datetime
     atoms: list[KnowledgeAtom] = Field(default_factory=list)
     documents: list[DistillDocument] = Field(default_factory=list)
+    deleted_source_ids: list[str] = Field(default_factory=list)
+
+
+class DistillFileState(BaseModel):
+    """One indexed input revision and the generated source it owns."""
+
+    content_hash: str = Field(min_length=1)
+    source_id: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9_-]*$")
 
 
 class DistillState(BaseModel):
     """Incremental-distillation bookkeeping: content hashes of already indexed files."""
 
-    files: dict[str, str] = Field(default_factory=dict)
+    files: dict[str, DistillFileState] = Field(default_factory=dict)
+
+    @field_validator("files", mode="before")
+    @classmethod
+    def load_legacy_hashes(cls, value):
+        if not isinstance(value, dict):
+            return value
+        return {
+            path: ({"content_hash": entry, "source_id": None} if isinstance(entry, str) else entry)
+            for path, entry in value.items()
+        }
 
     def is_unchanged(self, path: str, content_hash: str) -> bool:
-        return self.files.get(path) == content_hash
+        entry = self.files.get(path)
+        return entry is not None and entry.source_id is not None and entry.content_hash == content_hash

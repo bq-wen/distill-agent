@@ -95,6 +95,22 @@ class KnowledgeStore:
                     [(chunk.chunk_id, chunk.source_id, chunk.content) for chunk in chunks],
                 )
 
+    def delete_sources(self, source_ids: list[str]) -> int:
+        """Delete owned sources and their relational/FTS chunks in one transaction."""
+
+        unique_ids = sorted(set(source_ids))
+        if not unique_ids:
+            return 0
+        placeholders = ",".join("?" for _ in unique_ids)
+        with self._lock, self.connection:
+            self.connection.execute(
+                f"DELETE FROM knowledge_chunk_fts WHERE source_id IN ({placeholders})", unique_ids
+            )
+            cursor = self.connection.execute(
+                f"DELETE FROM knowledge_sources WHERE source_id IN ({placeholders})", unique_ids
+            )
+        return cursor.rowcount
+
     def semantic_candidates(self) -> list[tuple[KnowledgeChunk, SourceMetadata]]:
         return self._load_matches("SELECT c.*, s.* FROM knowledge_chunks c JOIN knowledge_sources s USING(source_id)")
 

@@ -98,8 +98,10 @@ def test_load_profile_from_indexed_store(tmp_path: Path) -> None:
 
 
 def test_build_persona_prompt_falls_back_without_profile() -> None:
-    assert build_persona_prompt(None) == DEFAULT_PERSONA_PROMPT
-    assert "本人实时在线" in DEFAULT_PERSONA_PROMPT
+    prompt = build_persona_prompt(None)
+    assert prompt.startswith(DEFAULT_PERSONA_PROMPT)
+    assert "本人实时在线" in prompt
+    assert "足够时直接给出" in prompt
 
 
 def test_build_persona_prompt_injects_identity() -> None:
@@ -118,6 +120,7 @@ def test_build_persona_prompt_injects_identity() -> None:
     assert "WenGraph、RAG" in prompt
     assert "简洁、直接" in prompt
     assert "绝不能补全或猜测" in prompt
+    assert "不要重复查询" in prompt
 
 
 def test_list_topic_groups_groups_by_project_with_questions(tmp_path: Path) -> None:

@@ -4,7 +4,7 @@
 > 本文档覆盖：项目是什么、当前状态、最近的 review 与修复、架构关键知识、运行验证方法、
 > 已知限制与下一步待办。读完后你应该能直接继续开发。
 >
-> 交接日期：2026-08-03 ｜ 交接人：bq-wen（本仓库 git 身份）
+> 交接日期：2026-08-06 ｜ 交接人：bq-wen（本仓库 git 身份）
 
 ---
 
@@ -40,7 +40,7 @@ personal-agent/
 ├── vendor/wengraph/          # 固定 submodule，不要直接改框架源码
 ├── frontend/                 # React SPA（main.tsx 单文件 + styles.css）
 ├── doc/                      # 学习/面试文档（architecture/serving-flow/distillation/rag/governance/tech-stack）
-└── tests/                    # pytest（当前 42 个，全过）
+└── tests/                    # pytest（当前 45 个，全过）
 ```
 
 **分层铁律**（AGENTS.md）：HTTP 关注点只在 `api/`；Agent 与知识行为在 `application/` 与 `knowledge/`；跨层用 Pydantic 契约；API 响应绝不暴露原始 Markdown 路径、私有正文、SQLite 行；WenGraph 只从 `wengraph_runtime.py` 导入。
@@ -65,15 +65,38 @@ personal-agent/
 - 审计产物：`data/distill/audit/<run_id>.json`（原子 + 文档，可溯源）。
 
 ### 测试
-- 42 个 pytest 全部通过（用脚本化 ChatModel/EmbeddingProvider，零外部依赖、可离线复跑）。
+- 45 个 pytest 全部通过（用脚本化 ChatModel/EmbeddingProvider，零外部依赖、可离线复跑）。
 - 前端 `npm run lint`（`--max-warnings=0`）与 `npm run build` 零告警。
 
 ---
 
-## 3. 最近一次会话：全面 review + 修复（2026-08-03）
+## 3. 最近一次会话：全面 review + 修复（2026-08-06）
 
-对全项目做了逐文件 review（后端 2874 行 + 前端 + 6 篇文档 + 943 行测试 + WenGraph 治理核心），
-修复了 7 处代码问题 + 7 处文档问题，测试从 37 增到 42。**git 历史里应有一条
+### 3.1 本次图结构 review 与修复
+
+项目实际是外围 HTTP/队列编排、在线六节点 ReAct 图、蒸馏十六节点审批图。本次已修复：蒸馏拒绝/失败不再写增量 state；detached approve 每次只批准一个 checkpoint；增量运行通过受 ToolGuard 保护的写库工具清理删除源；state.json 兼容旧版 hash 并迁移到 content_hash/source_id；公开元数据不暴露原始路径；在线图 max_steps 从 12 调整到 24；删除未引用的 _existing_refs()。45 个后端测试通过。
+
+### 3.2 真实 DeepSeek 体验
+
+已使用 OpenAI-compatible 配置完成真实请求：
+
+OPENAI_BASE_URL=https://api.deepseek.com
+OPENAI_MODEL=deepseek-v4-flash
+OPENAI_API_KEY 只通过进程环境注入，绝不提交。
+
+适配器会自动请求 base_url 加 /chat/completions，因此不要给 base_url 追加 /v1。已新增 knowledge/placeholder-project.md，并用 BAAI/bge-small-zh-v1.5 重建知识库；当前有 profile 和 placeholder-project 两个来源，共 2 个 chunk。
+
+模型已缓存时可离线加载：设置 HF_HOME、HF_HUB_OFFLINE=1、TRANSFORMERS_OFFLINE=1。另一台主机若没有模型缓存，先不要打开离线变量，让 Hugging Face 下载完成。
+
+### 3.3 TIMEOUT=5S 诊断
+
+当前知识库没有源码文件或 TIMEOUT=5S 内容。对 TIMEOUT=5S 的关键词召回为空，语义召回只返回 profile/占位资料的低相关结果，因此模型不知道该源码设置，根因是知识覆盖/索引不足，不是 ToolGuard 拒绝。
+
+持久化 Run 中有一次旧请求失败，原因是工具调用次数达到上限 4；另一次是客户端已关闭。没有证据显示 search_personal_semantic 或 search_personal_keywords 被 DENY/REQUIRE_APPROVAL 拒绝；在线工具是 READ_ONLY、LOW、UNATTENDED，正常会放行。
+
+如果要回答 TIMEOUT=5S，必须把允许公开的源码片段整理为带 YAML front matter 的 Markdown 后重新索引。在线 Agent 不会自动读取 Git 工作树源码。
+
+对全项目做了逐文件 review（后端 2874 行 + 前端 + 6 篇文档 + WenGraph 治理核心），并完成图结构 review 与工作流修复，测试当前为 45 个。**
 `fix: harden run_id validation, rate limiting, cleanup, and docs` 之类的提交**，diff 范围：
 
 | 文件 | 改动 |
@@ -152,7 +175,7 @@ cd frontend && npm run dev
 .venv/bin/python -m personal_agent.distillation.cli approve --run distill-xxx --database data/knowledge.db
 
 # 验证
-.venv/bin/python -m pytest -q                    # 42 passed
+.venv/bin/python -m pytest -q                    # 45 passed
 cd frontend && npm run lint && npm run build
 ```
 

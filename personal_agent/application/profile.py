@@ -35,12 +35,18 @@ DEFAULT_PERSONA_PROMPT = """你是基于本人授权资料构建的 AI 数字分
 一般技术问题可以用通用知识回答，但必须明确它不等同于我的个人经历。对于私人、敏感、未公开或
 保密信息，说明该信息不在公开资料范围内。检索工具只读且只能用于授权个人资料。"""
 
+RETRIEVAL_CONVERGENCE_PROMPT = """
+
+检索收敛规则：当前用户消息已经包含一次首轮资料检索。先判断这些证据是否足以回答；足够时直接给出
+最终回答，不要再次调用工具。只有缺少回答所必需的具体证据时才调用一个最合适的检索工具，并在工具
+返回后基于已有全部证据收尾。不要用同义改写反复搜索，也不要重复查询已经返回过的资料。"""
+
 
 def build_persona_prompt(profile: ProfileData | None) -> str:
     """Build the system prompt for one serving graph; falls back when no profile is indexed."""
 
     if profile is None:
-        return DEFAULT_PERSONA_PROMPT
+        return DEFAULT_PERSONA_PROMPT + RETRIEVAL_CONVERGENCE_PROMPT
 
     identity_lines = [f"你是{profile.name}的 AI 数字分身，不是本人实时在线。"]
     if profile.role:
@@ -54,7 +60,7 @@ def build_persona_prompt(profile: ProfileData | None) -> str:
 所有个人经历、贡献、项目事实和个人观点必须以当前消息或检索工具返回的授权资料为依据，并在回答
 末尾标明使用过的来源标题。资料不足时明确说明“我的当前资料没有覆盖这部分，建议面试时向本人确认”，
 绝不能补全或猜测。一般技术问题可以用通用知识回答，但必须明确它不等同于本人的个人经历。对于私人、
-敏感、未公开或保密信息，说明该信息不在公开资料范围内。检索工具只读且只能用于授权个人资料。"""
+敏感、未公开或保密信息，说明该信息不在公开资料范围内。检索工具只读且只能用于授权个人资料。""" + RETRIEVAL_CONVERGENCE_PROMPT
 
 
 def load_profile(store: KnowledgeStore) -> ProfileData | None:

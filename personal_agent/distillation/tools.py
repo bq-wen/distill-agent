@@ -43,7 +43,8 @@ class WriteAuditArtifactTool(Tool):
 
 
 class IndexDocumentsArguments(BaseModel):
-    documents_json: str = Field(min_length=1)
+    documents_json: str = Field(default="[]")
+    deleted_source_ids: list[str] = Field(default_factory=list)
 
 
 class IndexDocumentsTool(Tool):
@@ -62,9 +63,10 @@ class IndexDocumentsTool(Tool):
             DistillDocument.model_validate(item)
             for item in json.loads(args.documents_json)
         ]
+        deleted = self.knowledge.store.delete_sources(args.deleted_source_ids)
         total_chunks = 0
         indexed = 0
         for document in documents:
             indexed += 1
             total_chunks += self.knowledge.index_markdown_text(document.content, path=document.source_id)
-        return f"已索引 {indexed} 篇文档（{total_chunks} 个分块）"
+        return f"已索引 {indexed} 篇文档（{total_chunks} 个分块），删除 {deleted} 个旧来源"

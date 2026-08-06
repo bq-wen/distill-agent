@@ -13,8 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from personal_agent.distillation.contracts import RUN_ID_PATTERN, AuditArtifact, DistillState
+from personal_agent.distillation.contracts import DistillFileState, RUN_ID_PATTERN, AuditArtifact, DistillState
 from personal_agent.distillation.graph import build_distillation_graph
+from personal_agent.distillation.nodes import legacy_source_id_for, source_id_for
 from personal_agent.knowledge.embedding import HashEmbeddingProvider, SentenceTransformersEmbeddingProvider
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.knowledge.store import KnowledgeStore
@@ -115,7 +116,13 @@ def build_context(
     )
 
 
-def _new_executor(ctx: DistillContext, *, run_id: str, only_files: set[str] | None = None) -> GraphExecutor:
+def _new_executor(
+    ctx: DistillContext,
+    *,
+    run_id: str,
+    only_files: set[str] | None = None,
+    deleted_source_ids: set[str] | None = None,
+) -> GraphExecutor:
     graph, _ = build_distillation_graph(
         artifact_store=ctx.artifact_store,
         chat_model=ctx.chat_model,
@@ -125,6 +132,7 @@ def _new_executor(ctx: DistillContext, *, run_id: str, only_files: set[str] | No
         run_id=run_id,
         extraction_prompt=ctx.extraction_prompt,
         only_files=only_files,
+        deleted_source_ids=deleted_source_ids,
     )
     return GraphExecutor(
         graph,
@@ -137,8 +145,18 @@ def _new_executor(ctx: DistillContext, *, run_id: str, only_files: set[str] | No
     )
 
 
-async def _run_pipeline(ctx: DistillContext, *, run_id: str, approve: bool | None, yes: bool, only_files: set[str] | None = None) -> RunResult:
-    executor = _new_executor(ctx, run_id=run_id, only_files=only_files)
+async def _run_pipeline(
+    ctx: DistillContext,
+    *,
+    run_id: str,
+    approve: bool | None,
+    yes: bool,
+    only_files: set[str] | None = None,
+    deleted_source_ids: set[str] | None = None,
+) -> RunResult:
+    executor = _new_executor(
+        ctx, run_id=run_id, only_files=only_files, deleted_source_ids=deleted_source_ids
+    )
     result = await executor.run(run_id=run_id, timeout_seconds=1800)
     while result.status is RunStatus.PENDING_APPROVAL:
         assert result.checkpoint is not None
@@ -200,6 +218,33 @@ def _changed_files(ctx: DistillContext) -> set[str]:
     return changed
 
 
+def _deleted_source_ids(ctx: DistillContext) -> set[str]:
+    """Source IDs owned by input paths removed since the last successful run."""
+
+    state = ctx.load_state()
+    current_paths = {
+        str(path.relative_to(ctx.input_dir))
+        for path in ctx.input_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json"}
+    }
+    return {
+        entry.source_id or legacy_source_id_for(path)
+        for path, entry in state.files.items()
+        if path not in current_paths
+    }
+
+
+def _stale_source_ids(ctx: DistillContext, paths: set[str]) -> set[str]:
+    """Old source IDs that must be removed before re-indexing changed inputs."""
+
+    state = ctx.load_state()
+    return {
+        entry.source_id or legacy_source_id_for(path)
+        for path, entry in state.files.items()
+        if path in paths and (entry.source_id or legacy_source_id_for(path)) != source_id_for(path)
+    }
+
+
 def _noop_result(run_id: str, message: str) -> RunResult:
     return RunResult(status=RunStatus.COMPLETED, state=State(message=message))
 
@@ -225,14 +270,21 @@ def run_pipeline(
     run_id = run_id or f"distill-{uuid4()}"
     _validate_run_id(run_id)
     only_files: set[str] | None = None
+    deleted_source_ids: set[str] = set()
     if incremental:
         only_files = _changed_files(ctx)
-        if not only_files:
+        deleted_source_ids = _deleted_source_ids(ctx) | _stale_source_ids(ctx, only_files)
+        if not only_files and not deleted_source_ids:
             print("没有内容变化的文件，跳过本次蒸馏。", file=sys.stderr)
             return _noop_result(run_id, "没有内容变化的文件，跳过本次蒸馏。")
-    result = asyncio.run(_run_pipeline(ctx, run_id=run_id, approve=None, yes=yes, only_files=only_files))
-    if result.status is RunStatus.COMPLETED:
-        _record_indexed_hashes(ctx, run_id)
+    result = asyncio.run(
+        _run_pipeline(
+            ctx, run_id=run_id, approve=None, yes=yes, only_files=only_files,
+            deleted_source_ids=deleted_source_ids,
+        )
+    )
+    if _indexing_succeeded(result):
+        _record_indexed_hashes(ctx)
     return result
 
 
@@ -240,18 +292,18 @@ def approve_run(ctx: DistillContext, *, run_id: str, approved: bool) -> RunResul
     """Resume a pending run from its persisted checkpoint."""
 
     _validate_run_id(run_id)
-    executor = _new_executor(ctx, run_id=run_id)
+    checkpoint = ctx.checkpoint_store.get(run_id)
+    deleted_source_ids = _deleted_ids_from_checkpoint(ctx, checkpoint)
+    executor = _new_executor(ctx, run_id=run_id, deleted_source_ids=deleted_source_ids)
     result = asyncio.run(executor.resume(run_id, approved))
-    while result.status is RunStatus.PENDING_APPROVAL:
-        assert result.checkpoint is not None
+    if result.status is RunStatus.PENDING_APPROVAL:
         _print_pending(ctx, result)
-        result = asyncio.run(executor.resume(run_id, approved))
-    if result.status is RunStatus.COMPLETED:
-        _record_indexed_hashes(ctx, run_id)
+    elif _indexing_succeeded(result):
+        _record_indexed_hashes(ctx)
     return result
 
 
-def _record_indexed_hashes(ctx: DistillContext, run_id: str) -> None:
+def _record_indexed_hashes(ctx: DistillContext) -> None:
     """Record content hashes of every input file after a successful run.
 
     Only files that actually produced indexed atoms are guaranteed to be in the
@@ -260,12 +312,43 @@ def _record_indexed_hashes(ctx: DistillContext, run_id: str) -> None:
     """
 
     state = ctx.load_state()
+    state.files = {}
     for path in sorted(ctx.input_dir.rglob("*")):
         if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json"}:
             relative = str(path.relative_to(ctx.input_dir))
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            state.files[relative] = digest
+            state.files[relative] = DistillFileState(
+                content_hash=digest, source_id=source_id_for(relative)
+            )
     ctx.save_state(state)
+
+
+def _indexing_succeeded(result: RunResult) -> bool:
+    tool_result = result.state.last_tool_result
+    return (
+        result.status is RunStatus.COMPLETED
+        and tool_result is not None
+        and tool_result.ok
+        and tool_result.tool_name == "index_documents"
+    )
+
+
+def _deleted_ids_from_checkpoint(ctx: DistillContext, checkpoint) -> set[str]:
+    if checkpoint is None:
+        return set()
+    requests = checkpoint.state.pending_tool_requests or []
+    for request in requests:
+        if request.tool_name == "index_documents":
+            return set(request.arguments.get("deleted_source_ids", []))
+    for ref in checkpoint.state.artifacts.values():
+        if ref.kind != "audit":
+            continue
+        try:
+            audit = AuditArtifact.model_validate_json(ctx.artifact_store.get_text(ref.artifact_id))
+        except (ValueError, KeyError):
+            return set()
+        return set(audit.deleted_source_ids)
+    return set()
 
 
 def summarize_run(result: RunResult) -> str:

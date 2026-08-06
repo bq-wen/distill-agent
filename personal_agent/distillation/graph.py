@@ -54,6 +54,7 @@ def build_distillation_graph(
     run_id: str,
     extraction_prompt: str | None = None,
     only_files: set[str] | None = None,
+    deleted_source_ids: set[str] | None = None,
 ) -> tuple[Graph, list]:
     """Assemble the supervised distillation pipeline and return the guarded tools."""
 
@@ -67,9 +68,9 @@ def build_distillation_graph(
     cleaner = CleanerNode(artifact_store)
     extractor = ExtractorNode(chat_model, artifact_store, prompt=extraction_prompt)
     structurer = StructurerNode(artifact_store)
-    content_router = ContentRouter(artifact_store)
-    audit_gate = AuditGateNode(artifact_store, run_id=run_id)
-    indexer = IndexerNode(artifact_store)
+    content_router = ContentRouter(artifact_store, deleted_source_ids=deleted_source_ids)
+    audit_gate = AuditGateNode(artifact_store, run_id=run_id, deleted_source_ids=deleted_source_ids)
+    indexer = IndexerNode(artifact_store, deleted_source_ids=deleted_source_ids)
 
     guard = ToolGuard(CapabilityPolicy(), RiskPolicy(ExecutionMode.SUPERVISED))
     guard.capability_policy.register_tool(

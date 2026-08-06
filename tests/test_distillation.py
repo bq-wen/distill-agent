@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from personal_agent.distillation.contracts import AuditArtifact
+from personal_agent.distillation.contracts import AuditArtifact, DistillState
 from personal_agent.distillation.graph import build_distillation_graph
 from personal_agent.distillation.runner import approve_run, build_context, run_pipeline
 from personal_agent.distillation.tools import WriteAuditArtifactTool
@@ -188,6 +188,7 @@ def test_rejected_run_writes_nothing(tmp_path: Path) -> None:
 
         assert not (ctx.audit_dir / f"{run_id}.json").exists()
         assert ctx.knowledge_store.list_sources() == []
+        assert not ctx.state_file.exists()
     finally:
         ctx.close()
 
@@ -207,6 +208,10 @@ def test_approve_command_resumes_detached_run_in_new_context(tmp_path: Path) -> 
     # 模拟新的进程：重建上下文（同一 data/knowledge 路径、同一脚本模型），执行 approve。
     second = _scripted_context(tmp_path, model)
     try:
+        result = approve_run(second, run_id=run_id, approved=True)
+        assert result.status is RunStatus.PENDING_APPROVAL
+        assert result.checkpoint is not None
+        assert result.checkpoint.state.pending_tool_requests[0].tool_name == "index_documents"
         result = approve_run(second, run_id=run_id, approved=True)
         assert result.status is RunStatus.COMPLETED
         assert len(second.knowledge_store.list_sources()) == 2
@@ -291,5 +296,73 @@ def test_incremental_run_skips_unchanged_files(tmp_path: Path) -> None:
         assert third.status is RunStatus.COMPLETED
         assert len(model.messages) == 3
         assert (ctx.audit_dir / "distill-incr-3.json").is_file()
+    finally:
+        ctx.close()
+
+
+def test_incremental_run_removes_deleted_source_and_keeps_state_current(tmp_path: Path) -> None:
+    model = ScriptedDistillModel(
+        [
+            _atoms_response("我实现了可审计的知识蒸馏。"),
+            _atoms_response("我用混合检索回答问题。"),
+        ]
+    )
+    ctx = _scripted_context(tmp_path, model)
+    try:
+        first = run_pipeline(ctx, run_id="distill-delete-1", yes=True)
+        assert first.status is RunStatus.COMPLETED
+        assert len(ctx.knowledge_store.list_sources()) == 2
+        removed = ctx.input_dir / "chat" / "notes.txt"
+        removed.unlink()
+
+        second = run_pipeline(ctx, run_id="distill-delete-2", yes=True, incremental=True)
+        assert second.status is RunStatus.COMPLETED
+        assert len(ctx.knowledge_store.list_sources()) == 1
+        state = DistillState.model_validate_json(ctx.state_file.read_text(encoding="utf-8"))
+        assert set(state.files) == {"project/readme.md"}
+    finally:
+        ctx.close()
+
+
+def test_legacy_incremental_state_migrates_without_duplicate_source(tmp_path: Path) -> None:
+    model = ScriptedDistillModel([
+        _atoms_response("我有一条可迁移的知识。"),
+        _atoms_response("我有另一条可迁移的知识。"),
+    ])
+    ctx = _scripted_context(tmp_path, model)
+    try:
+        legacy = {
+            "files": {
+                "project/readme.md": "old-hash",
+                "chat/notes.txt": "old-hash-2",
+            }
+        }
+        ctx.state_file.parent.mkdir(parents=True, exist_ok=True)
+        ctx.state_file.write_text(json.dumps(legacy), encoding="utf-8")
+        result = run_pipeline(ctx, run_id="distill-migrate-1", yes=True, incremental=True)
+        assert result.status is RunStatus.COMPLETED
+        assert len(ctx.knowledge_store.list_sources()) == 2
+        migrated = DistillState.model_validate_json(ctx.state_file.read_text(encoding="utf-8"))
+        assert all(entry.source_id for entry in migrated.files.values())
+    finally:
+        ctx.close()
+
+
+def test_distilled_metadata_does_not_expose_input_path(tmp_path: Path) -> None:
+    model = ScriptedDistillModel([
+        _atoms_response("我会保护项目输入路径。"),
+        _atoms_response("我会保护聊天输入路径并保持来源可追溯。"),
+    ])
+    ctx = _scripted_context(tmp_path, model)
+    try:
+        result = run_pipeline(ctx, run_id="distill-metadata-1", yes=True)
+        assert result.status is RunStatus.COMPLETED
+        sources = ctx.knowledge_store.list_sources()
+        assert sources
+        for source in sources:
+            assert "project/" not in (source.public_summary or "")
+            assert "chat/" not in (source.public_summary or "")
+            assert "readme.md" not in source.title
+            assert source.project == "Approved Knowledge"
     finally:
         ctx.close()
