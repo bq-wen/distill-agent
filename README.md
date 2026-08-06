@@ -22,7 +22,7 @@
 - **知识原子可溯源**：蒸馏产物携带 `content/kind/confidence/source_file`，错能查到源头、能被审批拦下、能回滚。
 - **本地混合检索**：Sentence Transformers 语义检索 + SQLite FTS5 关键词检索，无需外部向量库。
 - **安全引用合同**：引用卡片仅由审核过的公开元数据（`public_summary`/`public_url`）构成；原始 Markdown、本地路径、内部结构不出现在任何 API 字段。
-- **数据驱动身份**：姓名、简介、覆盖主题、推荐问题全部来自 `knowledge/profile.md`（front matter `profile: true`），前端纯渲染、零硬编码。
+- **数据驱动身份**：姓名、简介、覆盖主题、推荐问题全部来自你的身份文档（`profile: true`，见下方示例），前端纯渲染、零硬编码。
 - **无登录、轻部署**：标签页会话（`sessionStorage`）+ 24 小时临时记忆；单进程、SQLite、Docker Compose 即可上线。
 
 ## Architecture
@@ -96,7 +96,7 @@ PERSONAL_AGENT_KNOWLEDGE_DB=data/example.db .venv/bin/python -m uvicorn \
 
 > 真实使用前：删除或移走 `knowledge/examples/`（否则它的内容会被索引进你的知识库）。
 
-1. 编辑 `knowledge/profile.md`（身份：姓名、简介、主题、推荐问题）。
+1. 创建 `knowledge/profile.md` 作为身份文档（front matter 带 `profile: true` 与 `name`，示例见 [examples/profile.md](knowledge/examples/profile.md)）。
 2. 在 `knowledge/` 下写你的项目资料 Markdown（YAML front matter 见 [知识文档格式](#知识文档格式)）。
 3. 把访谈/聊天记录等原始材料放任意目录，跑蒸馏链路（见上）；或直接运行 `python -m personal_agent.knowledge.cli knowledge --database data/knowledge.db` 建索引。
 4. 重新构建前端并启动，就是你的数字分身。
@@ -181,10 +181,9 @@ docker compose up -d
 │   └── wengraph_runtime.py    # 唯一 vendor 导入边界
 ├── frontend/                  # React + Vite 前端（数据驱动渲染）
 ├── knowledge/                 # 知识资料源（可版本控制）
-│   ├── profile.md             # 分身身份文档（profile: true）
-│   └── examples/              # 虚构示例人物 Lin（演示用）
+│   ├── examples/profile.md    # 示例身份文档（虚构人物 Lin，clone 即演示）
+│   └── placeholder-project.md # 占位项目资料
 ├── vendor/wengraph/           # 固定版本图运行时子模块
-├── doc/                       # 面试/学习 review 文档
 ├── deploy/                    # Nginx / HTTPS 部署模板
 ├── tests/                     # pytest（45+，含蒸馏审批跨进程恢复）
 ├── Dockerfile / compose.yaml  # 容器化
@@ -235,7 +234,3 @@ cd frontend && npm run lint && npm run build   # 前端
 ## License
 
 待定（TBD）——准备开源时确定。
-
----
-
-*学习文档（架构、检索、治理、面试讲法）见 [`doc/`](doc/README.md)。*

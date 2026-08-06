@@ -24,7 +24,7 @@ def test_health_endpoint_returns_the_stable_contract() -> None:
 
 def _indexed_profile_store(path: Path) -> KnowledgeStore:
     store = KnowledgeStore(path)
-    document_path = Path(__file__).parents[1] / "knowledge" / "profile.md"
+    document_path = Path(__file__).parents[1] / "knowledge" / "examples" / "profile.md"
     service = PersonalKnowledgeService(store, HashEmbeddingProvider())
     service.index_document(parse_markdown_document(document_path))
     return store
@@ -40,10 +40,10 @@ def test_profile_endpoint_returns_identity_from_profile_document(tmp_path: Path)
 
     assert response.status_code == 200
     body = response.json()
-    assert body["name"] == "Wen"
-    assert body["monogram"] == "W"
-    assert body["github"] == "https://github.com/bq-wen"
-    assert "WenGraph" in body["covered_topics"]
+    assert body["name"] == "Lin Chen"
+    assert body["monogram"] == "L"
+    assert body["github"] == "https://github.com/example-lin"
+    assert "RAG 工程" in body["covered_topics"]
 
 
 def test_profile_endpoint_404_without_profile_document(tmp_path: Path) -> None:
@@ -75,7 +75,7 @@ def test_topics_endpoint_returns_grouped_questions(tmp_path: Path) -> None:
     body = response.json()
     assert any(group["project"] == "Personal" for group in body)
     questions = [question for group in body for topic in group["topics"] for question in topic["questions"]]
-    assert "你的知识覆盖哪些主题？" in questions
+    assert "Lin 的知识覆盖哪些主题？" in questions
 
 
 def test_topics_endpoint_empty_without_sources(tmp_path: Path) -> None:
