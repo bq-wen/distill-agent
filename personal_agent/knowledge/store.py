@@ -186,6 +186,10 @@ class KnowledgeStore:
     def count_chunks(self) -> int:
         return self.connection.execute("SELECT COUNT(*) FROM knowledge_chunks").fetchone()[0]
 
+    def database_size(self) -> int:
+        """主库文件字节数。"""
+        return self.path.stat().st_size if self.path.is_file() else 0
+
     def _load_matches(self, sql: str) -> list[tuple[KnowledgeChunk, SourceMetadata]]:
         return [(self._chunk_from_row(row), self._source_from_row(row)) for row in self.connection.execute(sql)]
 

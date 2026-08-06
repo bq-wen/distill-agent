@@ -161,7 +161,9 @@ docker compose up -d
 | `PERSONAL_AGENT_EMBEDDING_DEVICE` | `cpu` | 模型设备 |
 | `PERSONAL_AGENT_DATA_DIR` | `data` | SQLite 与蒸馏产物目录 |
 | `PERSONAL_AGENT_QUEUE_WORKERS` / `QUEUE_SIZE` | `2` / `20` | 异步 Worker 与队列容量 |
-| `PERSONAL_AGENT_CONVERSATION_TTL_HOURS` | `24` | 临时会话保留时长 |
+| `PERSONAL_AGENT_CONVERSATION_TTL_HOURS` | `1` | 临时会话保留时长（默认 1h，防记忆滥用） |
+| `PERSONAL_AGENT_MAX_ACTIVE_CONVERSATIONS` | `100` | 活跃会话数上限，超出按 LRU 驱逐最久未活动会话 |
+| `PERSONAL_AGENT_MAX_EVENTS_PER_CONVERSATION` | `50` | 单会话事件数上限（约 25 轮），超出淘汰最旧 |
 | `PERSONAL_AGENT_MINIMUM_SEMANTIC_SCORE` | `0.35` | 语义检索阈值 |
 | `PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE` | `30` | 每客户端提交限流 |
 | `PERSONAL_AGENT_DAILY_TOKEN_BUDGET` | `20000` | 展示链路每日 LLM token 预算（占位值；超限后新提交返回 429） |

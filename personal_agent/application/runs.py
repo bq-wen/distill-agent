@@ -144,6 +144,24 @@ class PersonalRunStore:
             )
         return cursor.rowcount
 
+    def count_runs(self) -> int:
+        with self._lock:
+            row = self.connection.execute("SELECT COUNT(*) FROM personal_runs").fetchone()
+        return int(row[0]) if row else 0
+
+    def delete_expired_before(self, cutoff: datetime) -> int:
+        """物理删除早已过期的行，防止 runs 表无限累积。"""
+        with self._lock, self.connection:
+            cursor = self.connection.execute(
+                "DELETE FROM personal_runs WHERE status=? AND updated_at<?",
+                (PersonalRunStatus.EXPIRED.value, cutoff.isoformat()),
+            )
+        return cursor.rowcount
+
+    def database_size(self) -> int:
+        """主库文件字节数。"""
+        return self.path.stat().st_size if self.path.is_file() else 0
+
     def expire_before(self, cutoff: datetime) -> int:
         now = utc_now()
         with self._lock, self.connection:
@@ -239,9 +257,10 @@ class PersonalRunScheduler:
         *,
         worker_count: int = 2,
         max_queue_size: int = 20,
-        ttl: timedelta = timedelta(hours=24),
+        ttl: timedelta = timedelta(hours=1),
         conversation_store: SQLiteConversationStore | None = None,
         cleanup_interval: timedelta = timedelta(minutes=30),
+        max_active_conversations: int = 100,
     ) -> None:
         if worker_count < 1 or max_queue_size < 1 or ttl <= timedelta():
             raise ValueError("worker_count、max_queue_size 和 ttl 必须为正数")
@@ -252,6 +271,7 @@ class PersonalRunScheduler:
         self.ttl = ttl
         self.cleanup_interval = cleanup_interval
         self.conversation_store = conversation_store
+        self.max_active_conversations = max_active_conversations
         self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=max_queue_size)
         self._worker_count = worker_count
         self._workers: list[asyncio.Task] = []
@@ -290,12 +310,23 @@ class PersonalRunScheduler:
             self._run_cleanup()
 
     def _run_cleanup(self) -> None:
-        """Expire runs and conversation events older than the TTL."""
+        """Expire stale runs/events, then enforce capacity caps (anti-abuse)."""
 
         cutoff = utc_now() - self.ttl
         self.store.expire_before(cutoff)
+        self.store.delete_expired_before(utc_now() - self.ttl * 2)
         if self.conversation_store is not None:
             self.conversation_store.expire_before(cutoff)
+            self.conversation_store.cap_active_conversations(self.max_active_conversations)
+            self.conversation_store.wal_checkpoint()
+
+    def queue_depth(self) -> int:
+        return self.queue.qsize()
+
+    def active_conversations(self) -> int:
+        if self.conversation_store is None:
+            return 0
+        return self.conversation_store.count_active_conversations()
 
     async def submit(self, conversation_id: str, question: str) -> PersonalRun:
         if not self._workers:

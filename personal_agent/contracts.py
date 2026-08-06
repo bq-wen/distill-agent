@@ -68,6 +68,20 @@ class QuotaResponse(BaseModel):
     exhausted: bool
 
 
+class StatusResponse(BaseModel):
+    """Operational snapshot for capacity monitoring on small VPS hosts."""
+
+    queue_depth: int
+    active_conversations: int
+    conversation_events: int
+    runs: int
+    quota_used_today: int
+    quota_daily_budget: int
+    quota_remaining: int
+    quota_exhausted: bool
+    database_sizes: dict[str, int]
+
+
 class HealthResponse(BaseModel):
     """Stable health response for local development and container probes."""
 

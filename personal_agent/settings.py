@@ -37,11 +37,13 @@ class ApplicationSettings:
     minimum_semantic_score: float
     rate_limit_per_minute: int
     daily_token_budget: int
+    max_active_conversations: int
+    max_events_per_conversation: int
 
     @classmethod
     def from_environment(cls) -> "ApplicationSettings":
         data_directory = Path(os.environ.get("PERSONAL_AGENT_DATA_DIR", "data"))
-        ttl_hours = _positive_int("PERSONAL_AGENT_CONVERSATION_TTL_HOURS", 24)
+        ttl_hours = _positive_int("PERSONAL_AGENT_CONVERSATION_TTL_HOURS", 1)
         embedding_device = os.environ.get("PERSONAL_AGENT_EMBEDDING_DEVICE", "cpu").strip() or None
         embedding_model = os.environ.get("PERSONAL_AGENT_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5").strip()
         if not embedding_model:
@@ -62,4 +64,6 @@ class ApplicationSettings:
             minimum_semantic_score=_score("PERSONAL_AGENT_MINIMUM_SEMANTIC_SCORE", 0.35),
             rate_limit_per_minute=_positive_int("PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE", 30),
             daily_token_budget=_positive_int("PERSONAL_AGENT_DAILY_TOKEN_BUDGET", 20_000),
+            max_active_conversations=_positive_int("PERSONAL_AGENT_MAX_ACTIVE_CONVERSATIONS", 100),
+            max_events_per_conversation=_positive_int("PERSONAL_AGENT_MAX_EVENTS_PER_CONVERSATION", 50),
         )

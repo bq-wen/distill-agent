@@ -40,6 +40,10 @@ class TokenQuotaStore:
     def close(self) -> None:
         self._connection.close()
 
+    def database_size(self) -> int:
+        """主库文件字节数。"""
+        return self._path.stat().st_size if self._path.is_file() else 0
+
     def used_today(self) -> int:
         with self._lock:
             row = self._connection.execute(

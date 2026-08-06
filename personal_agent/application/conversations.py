@@ -1,4 +1,13 @@
-"""SQLite-backed WenGraph conversation store for temporary browser-tab memory."""
+"""SQLite-backed WenGraph conversation store for temporary browser-tab memory.
+
+Capacity guards (anti-bloat / anti-abuse) live here so a public deployment
+cannot grow without bound:
+
+- WAL journal mode with periodic checkpoints (see ``wal_checkpoint``).
+- Per-conversation event cap: the oldest events are pruned on append.
+- Active-conversation cap: ``cap_active_conversations`` evicts the least
+  recently active conversations (LRU), keeping busy visitors intact.
+"""
 
 import sqlite3
 from datetime import datetime
@@ -9,12 +18,17 @@ from personal_agent.wengraph_runtime import ConversationEvent, ConversationStore
 
 
 class SQLiteConversationStore(ConversationStore):
-    """Keeps only role/content events; application cleanup owns the 24-hour retention policy."""
+    """Keeps role/content events; cleanup owns TTL + capacity retention policy."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, max_events_per_conversation: int = 50) -> None:
+        if max_events_per_conversation < 1:
+            raise ValueError("max_events_per_conversation 必须至少为 1")
+        self.path = Path(path)
         self.connection = sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
+        self.connection.execute("PRAGMA journal_mode=WAL")
         self._lock = RLock()
+        self._max_events_per_conversation = max_events_per_conversation
         with self.connection:
             self.connection.execute(
                 """CREATE TABLE IF NOT EXISTS conversation_events (
@@ -39,6 +53,14 @@ class SQLiteConversationStore(ConversationStore):
                     event.created_at.isoformat(),
                 ),
             )
+            # 单会话事件数上限：保留最新 max_events 条，淘汰最旧。
+            self.connection.execute(
+                "DELETE FROM conversation_events WHERE conversation_id=? AND event_id NOT IN ("
+                "  SELECT event_id FROM conversation_events WHERE conversation_id=? "
+                "  ORDER BY created_at DESC, event_id DESC LIMIT ?"
+                ")",
+                (event.conversation_id, event.conversation_id, self._max_events_per_conversation),
+            )
 
     def list_recent(self, conversation_id: str, limit: int) -> list[ConversationEvent]:
         if limit < 1:
@@ -60,8 +82,46 @@ class SQLiteConversationStore(ConversationStore):
             )
         return cursor.rowcount
 
+    def count_active_conversations(self) -> int:
+        """会话数 = 仍保留任何事件的 conversation_id 数量。"""
+        with self._lock:
+            row = self.connection.execute(
+                "SELECT COUNT(DISTINCT conversation_id) AS n FROM conversation_events"
+            ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def count_events(self) -> int:
+        with self._lock:
+            row = self.connection.execute("SELECT COUNT(*) AS n FROM conversation_events").fetchone()
+        return int(row["n"]) if row else 0
+
+    def cap_active_conversations(self, limit: int) -> int:
+        """LRU 驱逐：只保留最近活跃的 limit 个会话，删除其余会话的全部事件。"""
+        if limit < 1:
+            raise ValueError("limit 必须至少为 1")
+        with self._lock, self.connection:
+            cursor = self.connection.execute(
+                "DELETE FROM conversation_events WHERE conversation_id IN ("
+                "  SELECT conversation_id FROM ("
+                "    SELECT conversation_id, MAX(created_at) AS last_active FROM conversation_events"
+                "    GROUP BY conversation_id ORDER BY last_active DESC LIMIT -1 OFFSET ?"
+                "  )"
+                ")",
+                (limit,),
+            )
+        return cursor.rowcount
+
+    def wal_checkpoint(self) -> None:
+        with self._lock:
+            self.connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    def database_size(self) -> int:
+        """主库文件字节数（不含 WAL；checkpoint 后 WAL 会并入）。"""
+        return self.path.stat().st_size if self.path.is_file() else 0
+
     def close(self) -> None:
         with self._lock:
+            self.wal_checkpoint()
             self.connection.close()
 
     @staticmethod
