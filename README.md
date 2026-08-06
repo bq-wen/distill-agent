@@ -213,7 +213,7 @@ A: 提炼是提示词级约束 + **强制人工审批**（写库前必须批准�
 A: 前端目前依赖 lint + 类型检查 + 构建；核心逻辑在后端（45+ pytest 覆盖，含审批暂停、驳回不写库、跨进程恢复）。
 
 **Q: vendor/wengraph 子模块拉不下来？**
-A: WenGraph 是公开仓库，`git clone --recurse-submodules` 即可；固定 commit，应用层只通过 `personal_agent/wengraph_runtime.py` 导入。
+A: 子模块 URL 使用 HTTPS（`https://github.com/bq-wen/WenGraph.git`），WenGraph 是公开仓库，`git clone --recurse-submodules` 即可；固定 commit，应用层只通过 `personal_agent/wengraph_runtime.py` 导入。
 
 ## Security Notes
 

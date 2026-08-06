@@ -14,8 +14,7 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@v4
-        # WenGraph must be public (or CI needs a PAT in secrets) for the
-        # recursive submodule checkout to succeed.
+        # WenGraph is a public repo; HTTPS submodule URL works without credentials.
         with:
           submodules: recursive
       - uses: actions/setup-python@v5
@@ -56,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        # WenGraph must be public (or CI needs a PAT in secrets) for the
+        # WenGraph is a public repo; HTTPS submodule URL works without credentials.
         # recursive submodule checkout to succeed.
         with:
           submodules: recursive

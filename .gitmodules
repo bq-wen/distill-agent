@@ -1,3 +1,3 @@
 [submodule "vendor/wengraph"]
 	path = vendor/wengraph
-	url = git@github.com:bq-wen/WenGraph.git
+	url = https://github.com/bq-wen/WenGraph.git
