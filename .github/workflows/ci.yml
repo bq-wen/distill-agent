@@ -56,7 +56,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         # WenGraph is a public repo; HTTPS submodule URL works without credentials.
-        # recursive submodule checkout to succeed.
         with:
           submodules: recursive
       - name: Build image
