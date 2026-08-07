@@ -61,7 +61,8 @@ personal-agent/
 - 流水线：SourceLoader → Cleaner → Extractor(LLM) → Structurer → ContentRouter → AuditGate → Indexer。
 - `write_audit_artifact`（MEDIUM）与 `index_documents`（HIGH）在 SUPERVISED 下强制 `REQUIRE_APPROVAL`；checkpoint 持久化到 SQLite，支持跨进程 `approve` 恢复。
 - CLI：`run --input ... --database ... [--yes|--incremental]`、`approve --run <id> [--reject]`。
-- 增量模式：SHA-256 哈希记录在 `data/distill/state.json`，只处理变更文件。
+- 增量模式：`data/distill/state.json` 记录每个文件的 `content_hash` 与生成的 `source_id`（兼容旧版纯哈希 state 自动迁移）；只处理变更文件，并清理已删除/改名文件的旧来源。
+- 蒸馏产物 `source_id` 为不透明哈希（`distilled-<sha256>`），title/summary 不暴露原始路径。
 - 审计产物：`data/distill/audit/<run_id>.json`（原子 + 文档，可溯源）。
 
 ### 测试
@@ -70,7 +71,9 @@ personal-agent/
 
 ---
 
-## 3. 最近一次会话：全面 review + 修复（2026-08-06）
+## 3. 最近会话记录（2026-08-03 ～ 2026-08-06）
+
+对全项目做了逐文件 review（后端 + 前端 + 文档 + 测试 + WenGraph 治理核心），两次会话分别完成：安全/工程修复（08-03）与图结构 review + 工作流强化（08-06，见下），测试从 37 增到 45。
 
 ### 3.1 本次图结构 review 与修复
 
@@ -96,8 +99,15 @@ OPENAI_API_KEY 只通过进程环境注入，绝不提交。
 
 如果要回答 TIMEOUT=5S，必须把允许公开的源码片段整理为带 YAML front matter 的 Markdown 后重新索引。在线 Agent 不会自动读取 Git 工作树源码。
 
-对全项目做了逐文件 review（后端 2874 行 + 前端 + 6 篇文档 + WenGraph 治理核心），并完成图结构 review 与工作流修复，测试当前为 45 个。**
-`fix: harden run_id validation, rate limiting, cleanup, and docs` 之类的提交**，diff 范围：
+### 3.4 工程化收尾（CI + ruff 门禁 + 文档同步）
+
+- 新增 `.github/workflows/ci.yml`：push/PR 自动跑 后端 ruff + pytest 与 前端 eslint + tsc + build。
+- 新增 `ruff.toml`（select E/F/I/UP/B/BLE/SIM/RUF；ignore E501 与 RUF001/2/3 全角标点误报；wengraph_runtime 与 tests 豁免 E402）；`requirements-dev.txt` 加 `ruff>=0.16,<0.17`。
+- ruff 实际修复：import 排序、未使用导入、`str,Enum`→`StrEnum`（UP042）、`zip(strict=True)`（B905）、无占位 f-string；worker 盲捕获保留并加 `# noqa: BLE001` 注释说明是刻意容错。
+- 文档同步：README 补 approve 逐个闸门语义、增量删除与不透明 source_id 说明、CI 段；`.env.example` 补 3 个可覆盖 DB 路径变量；`doc/distillation-pipeline.md` 补审批语义与 source_id/隐私说明；`doc/tech-stack-interview.md` 更新 CI 已落地并新增 1.5 工程化门禁。
+- 全量验证：`ruff check .` 零告警 + 45 pytest 通过 + 前端 lint/build 通过。
+
+### 3.0 安全与工程修复明细（08-03，提交 `830194a`）
 
 | 文件 | 改动 |
 |---|---|
@@ -175,6 +185,7 @@ cd frontend && npm run dev
 .venv/bin/python -m personal_agent.distillation.cli approve --run distill-xxx --database data/knowledge.db
 
 # 验证
+.venv/bin/python -m ruff check .            # 后端 lint 门禁
 .venv/bin/python -m pytest -q                    # 45 passed
 cd frontend && npm run lint && npm run build
 ```
@@ -190,7 +201,10 @@ cd frontend && npm run lint && npm run build
 4. **回答正文出站审核（P2，安全）**：若要硬保证私有正文不进 HTTP，需在出站前对 `answer.text` 做脱敏/摘要审核（当前只有 persona 软约束）。
 
 ### 文档里已写的增强点（低优先）
-- SSE 流式替代 700ms 轮询；Redis 队列多 worker；GitHub Actions CI（pytest+lint+build）；Nginx+HTTPS；Alembic 迁移；前端 openapi-typescript 类型生成。
+- SSE 流式替代 700ms 轮询；Redis 队列多 worker；Nginx+HTTPS；Alembic 迁移；前端 openapi-typescript 类型生成。
+
+### 已完成（勿重复做）
+- CI（`.github/workflows/ci.yml`）、后端 ruff 门禁（`ruff.toml`）、文档/环境变量同步——均在 08-06 落地。
 
 ### 实现中的小观察（可留意，非缺陷）
 - `service.py` 会话事件 created_at 用微秒间隔保证顺序，理论上有同一微秒的极小竞态；若换存储需保证有序。

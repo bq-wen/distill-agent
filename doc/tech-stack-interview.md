@@ -50,8 +50,16 @@
 ### 1.4 TypeScript + React 工程化
 项目位置：`frontend/`（React 18 + TS + Vite + ESLint 全开）
 
-要能讲：hooks 状态管理（messages/pending/error）、轮询实现（pollRun）、sessionStorage 会话隔离、`npm run lint` 零告警（`--max-warnings=0`）
+要能讲：hooks 状态管理（messages/pending/error）、轮询实现（pollRun）、sessionStorage 会话隔离、`npm run lint` 零告警（`--max-warnings=0`）、三栏布局（知识面板/对话/来源卡片）、Markdown 部分渲染
 增强点：openapi-typescript 从后端契约生成类型（单一事实源）——面试可提
+
+### 1.5 工程化门禁（已实现）
+- 后端：`ruff check .`（`ruff.toml`，Python 3.12 目标）——与前端 eslint 对等的 lint 门禁
+- 后端测试：`pytest`（45 个，离线可复跑，脚本化模型零外部依赖）
+- 前端：`tsc -b`（严格类型）+ `eslint --max-warnings=0` + `vite build`
+- CI：GitHub Actions（`.github/workflows/ci.yml`）在 push/PR 时自动跑以上全部
+
+要能讲：为什么给后端也加 lint 门禁（前端有 tsc/eslint，后端类型与风格之前全靠自觉）；为什么不用 ruff format（避免全库格式 churn，lint 先行）
 
 ## 2. 🟡 广度和加分区（建议做进项目，每个都是独立故事）
 
@@ -60,7 +68,7 @@
 | SSE 流式 | 轮询改 SSE + 前端流式渲染 | 流式协议理解 + 观感提升 | P3 |
 | 检索评估 | 20-30 条 QA 评估集 + recall@k 报告 | "我有评估闭环"—区分 90% 求职者 | P3 |
 | Redis 队列 | 队列换 Redis 实现多 worker | 兑现 README 预告的扩展路径 | P3 |
-| CI/CD | GitHub Actions：pytest + lint + build | 工程化素养，成本低 | P2 内 |
+| CI/CD | GitHub Actions：后端 ruff + pytest，前端 eslint + tsc + build（**已实现**，`.github/workflows/ci.yml`） | 工程化素养，成本低 | ✅ 已落地 |
 | Nginx + HTTPS | 云服务器上线标配 | 真实上线必须 | P2 内 |
 | Alembic/SQLite WAL | 数据库演进正规化 | 后端基本功 | 可选 |
 

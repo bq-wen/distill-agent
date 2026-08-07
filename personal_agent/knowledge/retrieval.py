@@ -5,7 +5,11 @@ import math
 from pathlib import Path
 
 from personal_agent.knowledge.chunking import chunk_markdown
-from personal_agent.knowledge.documents import KnowledgeDocument, parse_markdown_document, parse_markdown_text
+from personal_agent.knowledge.documents import (
+    KnowledgeDocument,
+    parse_markdown_document,
+    parse_markdown_text,
+)
 from personal_agent.knowledge.embedding import EmbeddingProvider
 from personal_agent.knowledge.models import KnowledgeChunk, RetrievalMatch
 from personal_agent.knowledge.store import KnowledgeStore
@@ -38,7 +42,7 @@ class PersonalKnowledgeService:
                 content_hash=_content_hash(content),
                 embedding=vector,
             )
-            for ordinal, ((heading, content), vector) in enumerate(zip(chunks, vectors))
+            for ordinal, ((heading, content), vector) in enumerate(zip(chunks, vectors, strict=True))
         ]
         self.store.replace_source(document.metadata, records)
         return len(records)
@@ -90,4 +94,4 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
     right_norm = math.sqrt(sum(value * value for value in right))
     if left_norm == 0 or right_norm == 0:
         raise ValueError("不能计算零向量的余弦相似度")
-    return sum(a * b for a, b in zip(left, right)) / (left_norm * right_norm)
+    return sum(a * b for a, b in zip(left, right, strict=True)) / (left_norm * right_norm)

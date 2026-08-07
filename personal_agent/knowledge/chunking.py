@@ -2,7 +2,6 @@
 
 import re
 
-
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 
 

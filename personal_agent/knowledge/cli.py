@@ -2,7 +2,10 @@
 
 import argparse
 
-from personal_agent.knowledge.embedding import HashEmbeddingProvider, SentenceTransformersEmbeddingProvider
+from personal_agent.knowledge.embedding import (
+    HashEmbeddingProvider,
+    SentenceTransformersEmbeddingProvider,
+)
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.knowledge.store import KnowledgeStore
 

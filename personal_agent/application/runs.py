@@ -1,10 +1,9 @@
 """Persisted Run state and bounded single-process async scheduling."""
 
 import asyncio
-import json
 import sqlite3
-from datetime import datetime, timedelta, timezone
-from enum import Enum
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from pathlib import Path
 from threading import RLock
 from typing import Protocol
@@ -17,10 +16,10 @@ from personal_agent.application.conversations import SQLiteConversationStore
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-class PersonalRunStatus(str, Enum):
+class PersonalRunStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -292,7 +291,7 @@ class PersonalRunScheduler:
                     answer = await self.answerer.answer(record.question, conversation_id=record.conversation_id)
                 except asyncio.CancelledError:
                     raise
-                except Exception as error:
+                except Exception as error:  # noqa: BLE001 - worker 容错：任何失败都标记为 run failed 供前端展示
                     self.store.mark_failed(run_id, str(error) or type(error).__name__)
                 else:
                     self.store.mark_completed(run_id, answer)

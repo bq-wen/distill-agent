@@ -29,7 +29,6 @@ from personal_agent.wengraph_runtime import (
 )
 
 
-
 def build_personal_graph(
     knowledge: PersonalKnowledgeService,
     chat_model: ChatModel,

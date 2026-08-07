@@ -13,10 +13,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from personal_agent.distillation.contracts import DistillFileState, RUN_ID_PATTERN, AuditArtifact, DistillState
+from personal_agent.distillation.contracts import (
+    RUN_ID_PATTERN,
+    AuditArtifact,
+    DistillFileState,
+    DistillState,
+)
 from personal_agent.distillation.graph import build_distillation_graph
 from personal_agent.distillation.nodes import legacy_source_id_for, source_id_for
-from personal_agent.knowledge.embedding import HashEmbeddingProvider, SentenceTransformersEmbeddingProvider
+from personal_agent.knowledge.embedding import (
+    HashEmbeddingProvider,
+    SentenceTransformersEmbeddingProvider,
+)
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.knowledge.store import KnowledgeStore
 from personal_agent.wengraph_runtime import (
@@ -161,9 +169,7 @@ async def _run_pipeline(
     while result.status is RunStatus.PENDING_APPROVAL:
         assert result.checkpoint is not None
         _print_pending(ctx, result)
-        if yes:
-            approved = True
-        elif approve is True:
+        if yes or approve is True:
             approved = True
         elif approve is False:
             approved = False

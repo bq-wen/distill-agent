@@ -1,14 +1,15 @@
 import asyncio
 from pathlib import Path
 
-from personal_agent.application.service import PersonalAgentService
+from llm import ChatModel, ModelResponse
+
 from personal_agent.application.conversations import SQLiteConversationStore
+from personal_agent.application.service import PersonalAgentService
 from personal_agent.knowledge.documents import parse_markdown_document
 from personal_agent.knowledge.embedding import HashEmbeddingProvider
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.knowledge.store import KnowledgeStore
 from personal_agent.wengraph_runtime import ToolRequest
-from llm import ChatModel, ModelResponse
 
 
 class ScriptedChatModel(ChatModel):

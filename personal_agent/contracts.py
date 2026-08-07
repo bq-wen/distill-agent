@@ -1,11 +1,11 @@
 """Typed application contracts shared by knowledge, service, and API layers."""
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import AnyHttpUrl, BaseModel, Field, model_validator
 
 
-class KnowledgeVisibility(str, Enum):
+class KnowledgeVisibility(StrEnum):
     """Visibility of the source document itself, not its public citation."""
 
     PRIVATE = "private"

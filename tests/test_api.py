@@ -3,10 +3,10 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from personal_agent.api.app import create_app
 from personal_agent.api.rate_limit import RateLimiter
 from personal_agent.application.contracts import AgentAnswer
 from personal_agent.application.runs import PersonalRunScheduler, PersonalRunStore
-from personal_agent.api.app import create_app
 from personal_agent.knowledge.documents import parse_markdown_document
 from personal_agent.knowledge.embedding import HashEmbeddingProvider
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService

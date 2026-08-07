@@ -92,12 +92,15 @@ python3.12 -m personal_agent.distillation.cli run --input knowledge/raw --databa
 # 自动化（CI/演示）：直接批准所有闸门
 python3.12 -m personal_agent.distillation.cli run --input knowledge/raw --database data/knowledge.db --yes
 
-# 非 TTY 环境：run 停在第一个审批闸门并打印 run_id，随后可单独批准/驳回
+# 非 TTY 环境：run 停在第一个审批闸门并打印 run_id，随后可单独批准/驳回。
+# approve 每次只批准一个闸门（写审计 → 再 approve → 写库），重复执行直到 completed
 python3.12 -m personal_agent.distillation.cli approve --run distill-xxxx --database data/knowledge.db
 python3.12 -m personal_agent.distillation.cli approve --run distill-xxxx --database data/knowledge.db --reject
 ```
 
-流水线：`SourceLoader → Cleaner → Extractor(LLM) → Structurer → AuditGate → Indexer`。输入支持 `.md/.txt/.json`；LLM 提炼产物为可溯源的知识原子（`content/kind/confidence/source_file`）；审核产物落在 `data/distill/audit/<run_id>.json`，增量哈希记录在 `data/distill/state.json`。生产检索仍用本地 Sentence Transformers，`--hash-embedding` 仅供测试。
+流水线：`SourceLoader → Cleaner → Extractor(LLM) → Structurer → AuditGate → Indexer`。输入支持 `.md/.txt/.json`；LLM 提炼产物为可溯源的知识原子（`content/kind/confidence/source_file`）；审核产物落在 `data/distill/audit/<run_id>.json`，增量哈希记录在 `data/distill/state.json`（每个文件记录 `content_hash` 与它生成的 `source_id`，兼容旧版纯哈希 state 自动迁移）。生产检索仍用本地 Sentence Transformers，`--hash-embedding` 仅供测试。
+
+增量模式（`--incremental`）额外处理删除与改名：已删除的输入文件、以及改名后旧 `source_id` 对应的知识来源，会通过受审批保护的 `index_documents` 工具一并清理，保证知识库与资料目录一致。蒸馏产物的 `source_id` 是**不透明哈希**（`distilled-<sha256>`），title/summary 不暴露原始文件路径。
 
 ## Profile 身份文档
 
@@ -126,6 +129,9 @@ docker compose up -d
 ## Verification
 
 ```bash
+python3.12 -m ruff check .            # 后端 lint（与前端 eslint 对等的门禁）
 python3.12 -m pytest -q
 cd frontend && npm run lint && npm run build
 ```
+
+CI（`.github/workflows/ci.yml`）：push 到 `main` 或 PR 时自动跑 后端 ruff + pytest 与 前端 eslint + tsc + build。

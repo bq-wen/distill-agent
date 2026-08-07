@@ -9,19 +9,11 @@ from personal_agent.distillation.contracts import AuditArtifact, DistillState
 from personal_agent.distillation.graph import build_distillation_graph
 from personal_agent.distillation.runner import approve_run, build_context, run_pipeline
 from personal_agent.distillation.tools import WriteAuditArtifactTool
-from personal_agent.knowledge.embedding import HashEmbeddingProvider
-from personal_agent.knowledge.retrieval import PersonalKnowledgeService
-from personal_agent.knowledge.store import KnowledgeStore
 from personal_agent.wengraph_runtime import (
     ChatModel,
     GraphExecutor,
     ModelResponse,
     RunStatus,
-    SQLiteArtifactStore,
-    SQLiteCheckpointStore,
-    SQLiteDatabase,
-    SQLiteRunStore,
-    SQLiteToolExecutionStore,
     State,
 )
 

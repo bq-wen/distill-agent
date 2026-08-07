@@ -49,12 +49,16 @@ class KnowledgeAtom(BaseModel):
 
 **溯源价值**：每一条知识都能回答"这条是从哪来的"。这是面试讲"AI 生成内容的数据治理"的落点——面试官问"LLM 提炼错了怎么办"，答案不是"不会错"，而是"错了能查到源头、能被审批拦下、能回滚"。
 
+**source_id 与隐私**：蒸馏产物的 `source_id` 是 `distilled-<sha256 前 16 位>`（由相对路径哈希，不暴露原始文件名/目录），`project` 固定为 `Approved Knowledge`，title/summary 不含源路径——公网页面永远看不到原始资料来自哪个文件。
+
 ## 4. 人工审批闸门（本设计的核心卖点）
 
 - 蒸馏图运行在 `ExecutionMode.SUPERVISED`
 - `write_audit_artifact`（MEDIUM）与 `index_documents`（HIGH）工具在 SUPERVISED 模式下 → `REQUIRE_APPROVAL`
 - 图执行器暂停 → 你查看 `data/audit/*.json` → CLI 批准/驳回 → 从 `resume_node_name` 恢复
 - **未批准原子绝不进入知识库**
+
+> **approve 语义（当前实现）**：`approve --run <id>` **每次只批准一个暂停的 checkpoint**。一个流水线有两个闸门（写审计、写库），所以需要重复执行 approve（每次打印下一条等待审批信息），直到输出 `completed`；驳回（`--reject`）则直接中止。`run --yes` 跳过所有闸门（CI/演示用）。
 
 面试讲法："蒸馏结果的写入不是自动的——同一套 ToolGuard 机制，在线服务无人值守放行只读检索，后台蒸馏在写库前强制人工审批。治理模型是同一个，参数不同。"
 
@@ -64,10 +68,10 @@ class KnowledgeAtom(BaseModel):
 # 全量蒸馏（产物先落 audit，批准后才入库）
 python3.12 -m personal_agent.distillation.cli run --input knowledge/examples/raw --database data/knowledge.db
 
-# 增量：只处理内容变化的文件（哈希记录在 data/distill/state.json）
+# 增量：只处理内容变化的文件，并清理已删除/改名文件的旧来源（哈希记录在 data/distill/state.json）
 python3.12 -m personal_agent.distillation.cli run --input ... --database data/knowledge.db --incremental
 
-# 审批（通过 / 驳回）
+# 审批：每次只批准一个闸门，重复执行直到 completed
 python3.12 -m personal_agent.distillation.cli approve --run <run_id> --database data/knowledge.db
 python3.12 -m personal_agent.distillation.cli approve --run <run_id> --database data/knowledge.db --reject
 ```

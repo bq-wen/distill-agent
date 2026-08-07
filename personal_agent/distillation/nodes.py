@@ -10,7 +10,7 @@ base. Pipeline payloads travel through the ArtifactStore as refs in ``state``.
 import hashlib
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -187,7 +187,7 @@ class ExtractorNode(Node):
         entries = _load_manifest(self.artifact_store, state, "clean_manifest")
         atoms: list[KnowledgeAtom] = []
         skipped = 0
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for entry in entries:
             text = self.artifact_store.get_text(entry.clean_artifact_id)
             if not text.strip():
@@ -298,7 +298,7 @@ class StructurerNode(Node):
                     f"title: {title}",
                     "visibility: private",
                     f"public_summary: {public_summary}",
-                    *([f"public_questions:" + "".join(f"\n  - {question}" for question in questions)] if questions else []),
+                    *(["public_questions:" + "".join(f"\n  - {question}" for question in questions)] if questions else []),
                     "---",
                 ]
             )
@@ -350,7 +350,7 @@ class AuditGateNode(Node):
         documents = _load_artifact_list(self.artifact_store, state, "documents", DistillDocument, required=False)
         payload = AuditArtifact(
             run_id=self.run_id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             atoms=atoms,
             documents=documents,
             deleted_source_ids=self.deleted_source_ids,

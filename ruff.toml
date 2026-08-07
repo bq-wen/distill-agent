@@ -1,0 +1,21 @@
+# Ruff lint configuration (Python 3.12).
+# Equivalent of the frontend ESLint gate for the backend; run with `ruff check .`.
+target-version = "py312"
+line-length = 100
+
+# vendor/wengraph is a fixed third-party submodule (not linted); frontend is JS/TS.
+exclude = ["vendor", "frontend"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "BLE", "SIM", "RUF"]
+# E501 (line too long) is intentionally not enforced: the codebase already uses
+# long Chinese docstrings/lines, and enforcing it would churn every file.
+# RUF001/002/003 flag full-width punctuation as "ambiguous" characters; Chinese
+# text legitimately uses them, so they are not actionable for this project.
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+
+[lint.per-file-ignores]
+# The import boundary deliberately mutates sys.path before framework imports.
+"personal_agent/wengraph_runtime.py" = ["E402"]
+# Tests import from the fixed submodule which is not a linted package.
+"tests/*" = ["E402"]
