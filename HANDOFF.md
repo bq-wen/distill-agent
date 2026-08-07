@@ -66,7 +66,7 @@ personal-agent/
 - 审计产物：`data/distill/audit/<run_id>.json`（原子 + 文档，可溯源）。
 
 ### 测试
-- 45 个 pytest 全部通过（用脚本化 ChatModel/EmbeddingProvider，零外部依赖、可离线复跑）。
+- 54 个 pytest 全部通过（含检索评估模块，用脚本化 ChatModel/EmbeddingProvider，零外部依赖、可离线复跑）。
 - 前端 `npm run lint`（`--max-warnings=0`）与 `npm run build` 零告警。
 
 ---
@@ -106,6 +106,15 @@ OPENAI_API_KEY 只通过进程环境注入，绝不提交。
 - ruff 实际修复：import 排序、未使用导入、`str,Enum`→`StrEnum`（UP042）、`zip(strict=True)`（B905）、无占位 f-string；worker 盲捕获保留并加 `# noqa: BLE001` 注释说明是刻意容错。
 - 文档同步：README 补 approve 逐个闸门语义、增量删除与不透明 source_id 说明、CI 段；`.env.example` 补 3 个可覆盖 DB 路径变量；`doc/distillation-pipeline.md` 补审批语义与 source_id/隐私说明；`doc/tech-stack-interview.md` 更新 CI 已落地并新增 1.5 工程化门禁。
 - 全量验证：`ruff check .` 零告警 + 45 pytest 通过 + 前端 lint/build 通过。
+
+### 3.5 检索评估模块（2026-08-07）
+
+- 新增 `knowledge/eval.py`：把生产检索路径（`search_hybrid`，从 service 抽到 retrieval 层共用）量化，输出 recall@k / precision@k / MRR；`--strategy all` 对比 semantic/keyword/hybrid 三列，未命中案例单独列出（供提问改写优化）。
+- 新增 `eval_cases/example.yaml`（8 条，基于 profile + placeholder 资料）；`tests/test_eval.py`（9 个测试：指标纯函数手算验证、YAML 加载、混合去重、端到端）。
+- **实测基线（bge-small-zh-v1.5，阈值 0.35，语料 2 来源）**：semantic recall@1=0.875 / MRR=0.938；keyword recall@1=0.25（FTS5 中文断词短板实证）；hybrid 与 semantic 持平。
+- 指标口径：命中按 source 去重计数（同一来源多 chunk 只计一次，避免 recall>1）；MRR 取首个命中 chunk 排名。
+- 文档：`doc/rag-retrieval.md` 评估从"目标态"改为"已实现"并新增 §6.5 选型边界（为什么没有 RRF/rerank/query 改写——按容量选型，评估驱动）；README 补评估命令；作品集资料补 RAG 深度选型。
+- 全量验证：54 pytest 通过 + ruff 零告警。
 
 ### 3.0 安全与工程修复明细（08-03，提交 `830194a`）
 
@@ -195,10 +204,11 @@ cd frontend && npm run lint && npm run build
 ## 6. 已知限制与下一步待办（按优先级）
 
 ### 已识别但未实现（建议下一台机器优先做）
-1. **程序级 PII 脱敏（P1）**：蒸馏 `CleanerNode` 目前只做格式去噪，手机号/邮箱/他人姓名依赖 prompt 规则 + 人工审批。建议在 Cleaner 加正则脱敏（`\d{11}` 手机号、邮箱模式、身份证），并在 `doc/distillation-pipeline.md` 更新"脱敏边界"段落。
-2. **检索评估集（P1，面试加分）**：建 20-30 条「问题 → 期望 source_id」QA 集，跑 recall@k。文档已列为目标态。
-3. **FTS 中文分词增强（P2）**：`unicode61` 对连续汉字整体切分，"工具安全" 查不到 "工具调用安全"。可换 jieba 分词或 n-gram（SQLite FTS5 tokenizer 需自定义或预处理）。
-4. **回答正文出站审核（P2，安全）**：若要硬保证私有正文不进 HTTP，需在出站前对 `answer.text` 做脱敏/摘要审核（当前只有 persona 软约束）。
+1. **query 改写（P1，评估驱动）**：评估基线已建立（见 §3.5：keyword 侧 recall@1=0.25，中文表达召回弱）。做提问改写（如同义扩展/短 query 补全）后用同一评估集复测，量化改进幅度；不改进就不上。
+2. **扩充真实评估集（P1）**：当前 8 条、语料 2 来源；导入真实资料后同步扩展 eval_cases，重跑得到真实覆盖数字。
+3. **程序级 PII 脱敏（P2）**：蒸馏 `CleanerNode` 目前只做格式去噪，手机号/邮箱/他人姓名依赖 prompt 规则 + 人工审批。建议在 Cleaner 加正则脱敏（`\d{11}` 手机号、邮箱模式、身份证），并在 `doc/distillation-pipeline.md` 更新"脱敏边界"段落。
+4. **FTS 中文分词增强（P2）**：`unicode61` 对连续汉字整体切分，评估证实关键词侧中文召回弱。可换 jieba 分词或 n-gram。
+5. **回答正文出站审核（P2，安全）**：若要硬保证私有正文不进 HTTP，需在出站前对 `answer.text` 做脱敏/摘要审核（当前只有 persona 软约束）。
 
 ### 文档里已写的增强点（低优先）
 - SSE 流式替代 700ms 轮询；Redis 队列多 worker；Nginx+HTTPS；Alembic 迁移；前端 openapi-typescript 类型生成。

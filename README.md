@@ -81,6 +81,18 @@ topics: [architecture]  # 可选：主题标签
 
 `source_id` 必须稳定且只包含小写字母、数字、`-` 或 `_`。生产索引使用本地 Sentence Transformers；`--hash-embedding` 仅供无模型下载的测试，不适用于生产检索。
 
+## Retrieval Evaluation（检索评估）
+
+量化混合检索能力（recall@k / precision@k / MRR），评估与在线服务走同一条 `search_hybrid` 路径：
+
+```bash
+python3.12 -m personal_agent.knowledge.eval \
+  --database data/knowledge.db --cases eval_cases/example.yaml \
+  --strategy all --min-score 0.35 --report data/eval-report.json
+```
+
+`eval_cases/example.yaml` 是评估集格式（问题 → 期望命中的 `source_id`），扩充真实资料后同步扩展并重跑。
+
 ## Distillation Pipeline（蒸馏链路）
 
 后台知识处理流水线：把**原始资料目录**自动加工成知识库。同一条 WenGraph 图运行时，蒸馏图运行在 `SUPERVISED` 模式——写审计产物（MEDIUM 风险）与写知识库（HIGH 风险）两个工具在 ToolGuard 处强制 `REQUIRE_APPROVAL`，未批准的内容不会进入知识库。

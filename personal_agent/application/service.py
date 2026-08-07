@@ -75,16 +75,11 @@ class PersonalAgentService:
         return answer
 
     def _initial_matches(self, question: str):
-        semantic = [
-            match
-            for match in self.knowledge.search_semantic(question, limit=3)
-            if match.score >= self.minimum_semantic_score
-        ]
-        keywords = self.knowledge.search_keywords(question, limit=3)
-        # 语义命中（已过阈值）优先于 FTS 精确命中：关键词匹配无法区分分数高低，
-        # 若后写覆盖会丢掉语义排序信息。
-        by_chunk = {match.chunk.chunk_id: match for match in [*keywords, *semantic]}
-        return list(by_chunk.values())
+        return self.knowledge.search_hybrid(
+            question,
+            limit=3,
+            minimum_semantic_score=self.minimum_semantic_score,
+        )
 
     @staticmethod
     def _render_initial_evidence(matches) -> str:

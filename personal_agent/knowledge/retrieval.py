@@ -56,6 +56,30 @@ class PersonalKnowledgeService:
     def search_keywords(self, query: str, *, limit: int = 5) -> list[RetrievalMatch]:
         return self.store.search_keywords(query, limit=_validated_limit(limit))
 
+    def search_hybrid(
+        self,
+        query: str,
+        *,
+        limit: int = 5,
+        minimum_semantic_score: float = 0.0,
+    ) -> list[RetrievalMatch]:
+        """Production retrieval path: semantic (thresholded) merged with keyword hits.
+
+        The same merge is used by the serving layer and the evaluation module, so
+        eval numbers reflect exactly what users see. Fusion is de-duplication by
+        chunk (semantic hit wins over the keyword copy), not score-level RRF: the
+        corpus is small and the keyword side is only there to lock proper nouns.
+        """
+
+        semantic = [
+            match
+            for match in self.search_semantic(query, limit=limit)
+            if match.score >= minimum_semantic_score
+        ]
+        keywords = self.search_keywords(query, limit=limit)
+        by_chunk = {match.chunk.chunk_id: match for match in [*keywords, *semantic]}
+        return list(by_chunk.values())[: _validated_limit(limit)]
+
     def search_semantic(self, query: str, *, limit: int = 5) -> list[RetrievalMatch]:
         candidates = self.store.semantic_candidates()
         if not candidates:
