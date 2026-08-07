@@ -4,7 +4,7 @@
 > 本文档覆盖：项目是什么、当前状态、最近的 review 与修复、架构关键知识、运行验证方法、
 > 已知限制与下一步待办。读完后你应该能直接继续开发。
 >
-> 交接日期：2026-08-06 ｜ 交接人：bq-wen（本仓库 git 身份）
+> 交接日期：2026-08-07 ｜ 交接人：bq-wen（本仓库 git 身份）
 
 ---
 
@@ -32,12 +32,13 @@ personal-agent/
 ├── personal_agent/
 │   ├── api/                  # HTTP 边界：app.py（路由/校验/限流）、bootstrap.py（生产组装）、rate_limit.py
 │   ├── application/          # 在线分身：service.py（单轮回答）、graph.py（ReAct 图装配）、runs.py（队列/worker/持久化/定时清理）、tools.py（只读检索工具）、conversations.py、profile.py、contracts.py
-│   ├── knowledge/            # 检索层：store.py（SQLite+FTS5）、retrieval.py（混合检索）、chunking.py、embedding.py、documents.py、models.py、cli.py
+│   ├── knowledge/            # 检索层：store.py（SQLite+FTS5）、retrieval.py（混合检索）、chunking.py、embedding.py、documents.py、models.py、cli.py、eval.py（检索评估）
 │   ├── distillation/         # 蒸馏链路：nodes.py（流水线节点）、graph.py（SUPERVISED 图）、runner.py（run/approve 流程）、tools.py（写审计/写库工具）、contracts.py、cli.py
 │   ├── contracts.py          # 共享公开契约（SourceMetadata/PublicCitation 等）
 │   ├── settings.py           # 环境配置（容量/限流/阈值）
 │   └── wengraph_runtime.py   # ⚠️ 唯一的 WenGraph 导入边界（应用层只能从这里 import）
 ├── vendor/wengraph/          # 固定 submodule，不要直接改框架源码
+├── eval_cases/               # 检索评估集（问题 → 期望命中的 source_id，YAML）
 ├── frontend/                 # React SPA（main.tsx 单文件 + styles.css）
 ├── doc/                      # 学习/面试文档（architecture/serving-flow/distillation/rag/governance/tech-stack）
 └── tests/                    # pytest（当前 45 个，全过）
@@ -69,9 +70,14 @@ personal-agent/
 - 54 个 pytest 全部通过（含检索评估模块，用脚本化 ChatModel/EmbeddingProvider，零外部依赖、可离线复跑）。
 - 前端 `npm run lint`（`--max-warnings=0`）与 `npm run build` 零告警。
 
+### 检索评估（`knowledge/eval.py`，2026-08-07 新增）
+- 量化生产检索路径（`search_hybrid`，与在线服务共用）：recall@k / precision@k / MRR，`--strategy all` 三路对比，未命中案例单独列出。
+- 实测基线（8 条示例评估集 · bge-small-zh-v1.5 · 阈值 0.35）：semantic recall@1=0.875 / MRR=0.938；keyword recall@1=0.25（FTS5 中文断词短板实证）；hybrid 与 semantic 持平。
+- 评估集：`eval_cases/example.yaml`；扩真实资料后需同步扩展并重跑。
+
 ---
 
-## 3. 最近会话记录（2026-08-03 ～ 2026-08-06）
+## 3. 最近会话记录（2026-08-03 ～ 2026-08-07）
 
 对全项目做了逐文件 review（后端 + 前端 + 文档 + 测试 + WenGraph 治理核心），两次会话分别完成：安全/工程修复（08-03）与图结构 review + 工作流强化（08-06，见下），测试从 37 增到 45。
 
@@ -192,6 +198,11 @@ cd frontend && npm run dev
 # 蒸馏（交互式审批 / 自动批准）
 .venv/bin/python -m personal_agent.distillation.cli run --input <raw_dir> --database data/knowledge.db
 .venv/bin/python -m personal_agent.distillation.cli approve --run distill-xxx --database data/knowledge.db
+
+# 检索评估（量化 recall@k / precision@k / MRR）
+.venv/bin/python -m personal_agent.knowledge.eval \
+  --database data/knowledge.db --cases eval_cases/example.yaml \
+  --strategy all --min-score 0.35 --report data/eval-report.json
 
 # 验证
 .venv/bin/python -m ruff check .            # 后端 lint 门禁
