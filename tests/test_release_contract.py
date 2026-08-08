@@ -20,4 +20,6 @@ def test_frontend_has_agent_subpath_contract() -> None:
 
     assert "base: '/agent/'" in vite
     assert 'window.location.pathname.startsWith("/agent")' in main
+    assert "globalThis.crypto?.randomUUID" in main
+    assert 'return "web-" + Date.now().toString(36)' in main
     assert 'fetch(apiUrl("/api/profile"))' in main

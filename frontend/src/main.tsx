@@ -83,6 +83,11 @@ const fallbackQuestions = [
 const sessionKey = "distill-agent-conversation-id";
 const apiPrefix = window.location.pathname.startsWith("/agent") ? "/agent" : "";
 
+function createClientId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return "web-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+}
+
 function apiUrl(url: string) {
   return apiPrefix + url;
 }
@@ -90,7 +95,7 @@ function apiUrl(url: string) {
 function conversationId() {
   const current = sessionStorage.getItem(sessionKey);
   if (current) return current;
-  const next = crypto.randomUUID();
+  const next = createClientId();
   sessionStorage.setItem(sessionKey, next);
   return next;
 }
@@ -329,7 +334,7 @@ function App() {
     setRunStatus("queued");
     setMessages((current) => [
       ...current,
-      { id: crypto.randomUUID(), role: "user", text },
+      { id: createClientId(), role: "user", text },
     ]);
     try {
       const run = await requestJson<Run>(
@@ -567,7 +572,7 @@ function App() {
           </form>
           <p className="retention">
             <Clock3 size={13} />
-            此标签页的临时对话会保留至多 24 小时。
+            此标签页的临时对话会保留至多 1 小时。
           </p>
         </section>
         <SourcesPanel
