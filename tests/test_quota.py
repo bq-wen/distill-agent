@@ -136,3 +136,40 @@ def asyncio_run(awaitable):
     import asyncio
 
     return asyncio.run(awaitable)
+
+
+def test_concurrent_reserves_never_exceed_budget(tmp_path: Path) -> None:
+    """并发 reserve 原子性：多线程同时抢占预算，总额绝不越过 limit。"""
+    import threading
+
+    store = TokenQuotaStore(tmp_path / "quota.db")
+    limit = 1000
+    results: list[bool] = []
+    errors: list[Exception] = []
+    lock = threading.Lock()
+
+    def worker() -> None:
+        # 每个线程重复尝试，模拟持续到来的请求
+        for _ in range(200):
+            try:
+                ok = store.try_reserve(60, limit)
+                with lock:
+                    results.append(ok)
+            except QuotaExceededError as exc:  # pragma: no cover - 不应发生
+                with lock:
+                    errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    try:
+        assert not errors, errors
+        assert sum(results) == 16  # 1000 // 60 = 16 次完整扣减
+        assert store.used_today() <= limit  # 原子检查：绝不超限
+        # 第 17 次起全部拒绝
+        assert store.try_reserve(60, limit) is False
+    finally:
+        store.close()

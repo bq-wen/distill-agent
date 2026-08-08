@@ -64,6 +64,26 @@ class TokenQuotaStore:
             ).fetchone()
         return int(row[0]) if row else 0
 
+    def try_reserve(self, tokens: int, limit: int) -> bool:
+        """原子 reserve：锁内检查 + 扣减，并发下也不会双双通过。
+
+        Returns False 时不做任何扣减（调用方应拒绝该请求）。
+        """
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT tokens_used FROM quota_log WHERE day = ?", (str(date.today()),)
+            ).fetchone()
+            used = int(row[0]) if row else 0
+            if used + tokens > limit:
+                return False
+            self._connection.execute(
+                "INSERT INTO quota_log (day, tokens_used) VALUES (?, ?) "
+                "ON CONFLICT(day) DO UPDATE SET tokens_used = tokens_used + excluded.tokens_used",
+                (str(date.today()), tokens),
+            )
+            self._connection.commit()
+        return True
+
 
 class QuotaChatModel(ChatModel):
     """Wrap a delegate ChatModel with a daily token budget.
@@ -88,10 +108,12 @@ class QuotaChatModel(ChatModel):
 
     async def complete(self, messages: list[ChatMessage], **kwargs) -> ModelResponse:
         prompt_tokens = self._estimator.count_messages(messages)
-        if self._store.used_today() + prompt_tokens > self._daily_budget:
+        # 原子 reserve：检查与扣减在同一把锁内，两个并发请求不可能同时通过。
+        if not self._store.try_reserve(prompt_tokens, self._daily_budget):
             raise QuotaExceededError("今日 token 预算已用尽，请明日再来")
-        self._store.add_tokens(prompt_tokens)
         response = await self._delegate.complete(messages, **kwargs)
+        # 结算响应 token：预算拒绝的是“新请求”，实际响应量如实入账，
+        # 可能导致当日总额略超预算（估算精度），但不影响拒绝语义。
         self._store.add_tokens(self._estimator.count_text(response.text or ""))
         return response
 
