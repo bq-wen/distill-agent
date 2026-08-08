@@ -73,7 +73,9 @@ def load_profile(store: KnowledgeStore) -> ProfileData | None:
     raw = store.profile_data()
     if raw is None:
         return None
-    return ProfileData.model_validate({key: value for key, value in raw.items() if value is not None})
+    return ProfileData.model_validate(
+        {key: value for key, value in raw.items() if value is not None}
+    )
 
 
 def list_topic_groups(sources: list[SourceMetadata]) -> list[TopicGroup]:
@@ -90,4 +92,6 @@ def list_topic_groups(sources: list[SourceMetadata]) -> list[TopicGroup]:
                 questions=source.public_questions,
             )
         )
-    return [TopicGroup(project=project, topics=topics) for project, topics in sorted(grouped.items())]
+    return [
+        TopicGroup(project=project, topics=topics) for project, topics in sorted(grouped.items())
+    ]

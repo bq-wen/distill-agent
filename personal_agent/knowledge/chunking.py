@@ -32,8 +32,12 @@ def chunk_markdown(content: str, *, max_chars: int = 1_200) -> list[tuple[str | 
     return chunks
 
 
-def _split_section(heading: str | None, section: str, max_chars: int) -> list[tuple[str | None, str]]:
-    paragraphs = [paragraph.strip() for paragraph in re.split(r"\n\s*\n", section) if paragraph.strip()]
+def _split_section(
+    heading: str | None, section: str, max_chars: int
+) -> list[tuple[str | None, str]]:
+    paragraphs = [
+        paragraph.strip() for paragraph in re.split(r"\n\s*\n", section) if paragraph.strip()
+    ]
     result: list[tuple[str | None, str]] = []
     current = ""
     for paragraph in paragraphs:
@@ -42,7 +46,8 @@ def _split_section(heading: str | None, section: str, max_chars: int) -> list[tu
                 result.append((heading, current))
                 current = ""
             result.extend(
-                (heading, paragraph[start : start + max_chars]) for start in range(0, len(paragraph), max_chars)
+                (heading, paragraph[start : start + max_chars])
+                for start in range(0, len(paragraph), max_chars)
             )
             continue
         candidate = paragraph if not current else f"{current}\n\n{paragraph}"

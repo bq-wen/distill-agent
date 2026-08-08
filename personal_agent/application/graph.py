@@ -56,7 +56,11 @@ def build_personal_graph(
     guard = ToolGuard(CapabilityPolicy(), RiskPolicy(ExecutionMode.UNATTENDED))
     for tool in tools:
         guard.capability_policy.register_tool(
-            ToolSpec(name=tool.name, required_capabilities={Capability.READ_CODE}, risk_level=RiskLevel.LOW)
+            ToolSpec(
+                name=tool.name,
+                required_capabilities={Capability.READ_CODE},
+                risk_level=RiskLevel.LOW,
+            )
         )
     guard.capability_policy.grant(llm.name, {Capability.READ_CODE})
     guard_node = ToolGuardNode(guard)
@@ -98,12 +102,19 @@ def build_personal_graph(
     graph.set_read_policy(router, {StateField.NEXT_ACTION})
     graph.set_write_policy(router, set())
     graph.set_read_policy(
-        guard_node, {StateField.PENDING_TOOL_REQUEST, StateField.PENDING_TOOL_REQUESTS, StateField.TOOL_REQUESTER}
+        guard_node,
+        {
+            StateField.PENDING_TOOL_REQUEST,
+            StateField.PENDING_TOOL_REQUESTS,
+            StateField.TOOL_REQUESTER,
+        },
     )
     graph.set_write_policy(guard_node, {StateField.POLICY_DECISION})
     graph.set_read_policy(policy_router, {StateField.POLICY_DECISION})
     graph.set_write_policy(policy_router, set())
-    graph.set_read_policy(tool_node, {StateField.PENDING_TOOL_REQUEST, StateField.PENDING_TOOL_REQUESTS})
+    graph.set_read_policy(
+        tool_node, {StateField.PENDING_TOOL_REQUEST, StateField.PENDING_TOOL_REQUESTS}
+    )
     graph.set_write_policy(tool_node, {StateField.LAST_TOOL_RESULT, StateField.TOOL_HISTORY})
     graph.set_read_policy(finish, set())
     graph.set_write_policy(finish, set())

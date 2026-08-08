@@ -30,7 +30,8 @@ class ScriptedDistillModel(ChatModel):
 
 def _atoms_response(*contents: str) -> ModelResponse:
     atoms = [
-        {"content": content, "kind": "statement", "confidence": 0.9, "source_type": "notes"} for content in contents
+        {"content": content, "kind": "statement", "confidence": 0.9, "source_type": "notes"}
+        for content in contents
     ]
     return ModelResponse(text=json.dumps({"atoms": atoms}, ensure_ascii=False))
 
@@ -99,7 +100,9 @@ def test_run_id_whitelist_blocks_path_traversal(tmp_path: Path) -> None:
 def test_pipeline_pauses_for_approval_and_indexes_after_approve(tmp_path: Path) -> None:
     model = ScriptedDistillModel(
         [
-            _atoms_response("我用 ToolGuard 治理 Agent 工具调用。", "状态变更通过 StatePatch 表达。"),
+            _atoms_response(
+                "我用 ToolGuard 治理 Agent 工具调用。", "状态变更通过 StatePatch 表达。"
+            ),
             _atoms_response("我选择自研图运行时是因为可控性。"),
         ]
     )
@@ -148,7 +151,10 @@ def test_pipeline_pauses_for_approval_and_indexes_after_approve(tmp_path: Path) 
 
 def test_rejected_run_writes_nothing(tmp_path: Path) -> None:
     model = ScriptedDistillModel(
-        [_atoms_response("我用 ToolGuard 治理 Agent 工具调用。"), _atoms_response("状态变更通过 StatePatch 表达。")]
+        [
+            _atoms_response("我用 ToolGuard 治理 Agent 工具调用。"),
+            _atoms_response("状态变更通过 StatePatch 表达。"),
+        ]
     )
     ctx = _scripted_context(tmp_path, model)
     try:
@@ -186,7 +192,10 @@ def test_rejected_run_writes_nothing(tmp_path: Path) -> None:
 
 def test_approve_command_resumes_detached_run_in_new_context(tmp_path: Path) -> None:
     model = ScriptedDistillModel(
-        [_atoms_response("我用 ToolGuard 治理工具调用。"), _atoms_response("我自研图运行时为了可控性。")]
+        [
+            _atoms_response("我用 ToolGuard 治理工具调用。"),
+            _atoms_response("我自研图运行时为了可控性。"),
+        ]
     )
     first = _scripted_context(tmp_path, model)
     run_id = "distill-test-detached"
@@ -233,7 +242,10 @@ async def _first_pause(ctx, run_id: str):
 
 def test_run_pipeline_cli_wrapper_with_yes_flag(tmp_path: Path) -> None:
     model = ScriptedDistillModel(
-        [_atoms_response("我用 ToolGuard 治理工具调用。"), _atoms_response("状态变更通过 StatePatch 表达。")]
+        [
+            _atoms_response("我用 ToolGuard 治理工具调用。"),
+            _atoms_response("状态变更通过 StatePatch 表达。"),
+        ]
     )
     ctx = _scripted_context(tmp_path, model)
     try:
@@ -246,7 +258,9 @@ def test_run_pipeline_cli_wrapper_with_yes_flag(tmp_path: Path) -> None:
 
 
 def test_pipeline_without_atoms_stops_before_gates(tmp_path: Path) -> None:
-    model = ScriptedDistillModel([ModelResponse(text="没有可用信息"), ModelResponse(text="没有可用信息")])
+    model = ScriptedDistillModel(
+        [ModelResponse(text="没有可用信息"), ModelResponse(text="没有可用信息")]
+    )
     ctx = _scripted_context(tmp_path, model)
     try:
         result = run_pipeline(ctx, run_id="distill-test-empty", yes=True)

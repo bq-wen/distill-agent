@@ -5,7 +5,9 @@ import pytest
 from personal_agent.settings import ApplicationSettings
 
 
-def test_settings_use_data_directory_and_validate_capacity(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+def test_settings_use_data_directory_and_validate_capacity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
     monkeypatch.setenv("PERSONAL_AGENT_DATA_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("PERSONAL_AGENT_QUEUE_WORKERS", "3")
     monkeypatch.setenv("PERSONAL_AGENT_CONVERSATION_TTL_HOURS", "24")

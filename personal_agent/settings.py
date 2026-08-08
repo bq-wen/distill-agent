@@ -45,17 +45,27 @@ class ApplicationSettings:
         data_directory = Path(os.environ.get("PERSONAL_AGENT_DATA_DIR", "data"))
         ttl_hours = _positive_int("PERSONAL_AGENT_CONVERSATION_TTL_HOURS", 1)
         embedding_device = os.environ.get("PERSONAL_AGENT_EMBEDDING_DEVICE", "cpu").strip() or None
-        embedding_model = os.environ.get("PERSONAL_AGENT_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5").strip()
+        embedding_model = os.environ.get(
+            "PERSONAL_AGENT_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5"
+        ).strip()
         if not embedding_model:
             raise ValueError("PERSONAL_AGENT_EMBEDDING_MODEL 不能为空")
         return cls(
             data_directory=data_directory,
-            knowledge_database=Path(os.environ.get("PERSONAL_AGENT_KNOWLEDGE_DB", data_directory / "knowledge.db")),
-            runs_database=Path(os.environ.get("PERSONAL_AGENT_RUNS_DB", data_directory / "runs.db")),
-            conversations_database=Path(
-                os.environ.get("PERSONAL_AGENT_CONVERSATIONS_DB", data_directory / "conversations.db")
+            knowledge_database=Path(
+                os.environ.get("PERSONAL_AGENT_KNOWLEDGE_DB", data_directory / "knowledge.db")
             ),
-            quota_database=Path(os.environ.get("PERSONAL_AGENT_QUOTA_DB", data_directory / "quota.db")),
+            runs_database=Path(
+                os.environ.get("PERSONAL_AGENT_RUNS_DB", data_directory / "runs.db")
+            ),
+            conversations_database=Path(
+                os.environ.get(
+                    "PERSONAL_AGENT_CONVERSATIONS_DB", data_directory / "conversations.db"
+                )
+            ),
+            quota_database=Path(
+                os.environ.get("PERSONAL_AGENT_QUOTA_DB", data_directory / "quota.db")
+            ),
             embedding_model=embedding_model,
             embedding_device=embedding_device,
             queue_workers=_positive_int("PERSONAL_AGENT_QUEUE_WORKERS", 2),
@@ -65,5 +75,7 @@ class ApplicationSettings:
             rate_limit_per_minute=_positive_int("PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE", 30),
             daily_token_budget=_positive_int("PERSONAL_AGENT_DAILY_TOKEN_BUDGET", 20_000),
             max_active_conversations=_positive_int("PERSONAL_AGENT_MAX_ACTIVE_CONVERSATIONS", 100),
-            max_events_per_conversation=_positive_int("PERSONAL_AGENT_MAX_EVENTS_PER_CONVERSATION", 50),
+            max_events_per_conversation=_positive_int(
+                "PERSONAL_AGENT_MAX_EVENTS_PER_CONVERSATION", 50
+            ),
         )

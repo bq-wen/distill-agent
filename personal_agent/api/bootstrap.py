@@ -42,7 +42,8 @@ def build_resources(settings: ApplicationSettings) -> ProductionResources:
     settings.data_directory.mkdir(parents=True, exist_ok=True)
     knowledge_store = KnowledgeStore(settings.knowledge_database)
     conversation_store = SQLiteConversationStore(
-        settings.conversations_database, max_events_per_conversation=settings.max_events_per_conversation
+        settings.conversations_database,
+        max_events_per_conversation=settings.max_events_per_conversation,
     )
     run_store = PersonalRunStore(settings.runs_database)
     quota_store = TokenQuotaStore(settings.quota_database)
@@ -53,7 +54,9 @@ def build_resources(settings: ApplicationSettings) -> ProductionResources:
     )
     knowledge = PersonalKnowledgeService(
         knowledge_store,
-        SentenceTransformersEmbeddingProvider(settings.embedding_model, device=settings.embedding_device),
+        SentenceTransformersEmbeddingProvider(
+            settings.embedding_model, device=settings.embedding_device
+        ),
     )
     service = PersonalAgentService(
         knowledge,

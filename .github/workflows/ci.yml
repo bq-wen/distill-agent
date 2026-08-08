@@ -9,13 +9,10 @@ jobs:
   backend:
     name: Backend (ruff + mypy + pytest)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: .
     steps:
       - uses: actions/checkout@v4
-        # WenGraph is a public repo; HTTPS submodule URL works without credentials.
         with:
+          # WenGraph is a public repo; HTTPS submodule URL works without credentials.
           submodules: recursive
       - uses: actions/setup-python@v5
         with:
@@ -24,17 +21,17 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
-      - name: Ruff lint
-        run: ruff check personal_agent tests
-      - name: Ruff format check
-        run: ruff format --check personal_agent tests
-      - name: Mypy
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Format (ruff)
+        run: ruff format --check .
+      - name: Type check (mypy)
         run: mypy personal_agent
-      - name: Pytest
-        run: pytest -q
+      - name: Test (pytest)
+        run: python -m pytest -q
 
   frontend:
-    name: Frontend (lint + build)
+    name: Frontend (eslint + tsc + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,8 +52,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        # WenGraph is a public repo; HTTPS submodule URL works without credentials.
         with:
+          # WenGraph is a public repo; HTTPS submodule URL works without credentials.
           submodules: recursive
       - name: Build image
         run: docker build -t distill-agent:${{ github.sha }} .

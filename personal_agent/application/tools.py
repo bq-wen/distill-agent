@@ -34,7 +34,9 @@ class _PersonalSearchTool(Tool):
         sections = []
         for match in matches:
             heading = f"\n章节：{match.chunk.heading}" if match.chunk.heading else ""
-            sections.append(f"[来源：{match.source.title} | {match.source.source_id}]{heading}\n{match.chunk.content}")
+            sections.append(
+                f"[来源：{match.source.title} | {match.source.source_id}]{heading}\n{match.chunk.content}"
+            )
         return "\n\n".join(sections)
 
 

@@ -1,0 +1,47 @@
+# 示例评估集：问题 → 期望命中的知识来源
+#
+# 用法：
+#   python -m personal_agent.knowledge.eval \
+#     --database data/knowledge.db --cases eval_cases/example.yaml \
+#     --strategy all --min-score 0.35 --report data/eval-report.json
+#
+# 设计原则：
+#   - expected_source_ids 是"资料充分时应召回哪个来源"，以 source 为单位评估（chunk 级太细）
+#   - 同时覆盖语义表达（同义句）与关键词表达（专有名词），才能看出混合检索两路的贡献
+#   - 后续补充真实资料时，把每个资料的关键事实各设计 2-3 条问题
+
+metadata:
+  description: 基于 profile 与 placeholder 资料的示例评估集（8 条）；扩充真实资料后请扩展此文件
+
+cases:
+  - question: "你的知识覆盖哪些主题？"
+    expected_source_ids: ["profile"]
+    note: 语义：profile 正文列了关注方向（RAG、Agent 工程等）
+
+  - question: "数字分身是用什么图运行时构建的？"
+    expected_source_ids: ["profile"]
+    note: 语义：profile 正文"自研 WenGraph 图运行时…构建了本数字分身"
+
+  - question: "你如何保证回答不编造个人经历？"
+    expected_source_ids: ["placeholder-project"]
+    note: 语义：placeholder 正文"资料没有覆盖…不应编造个人经历"
+
+  - question: "这个占位项目展示了什么流程？"
+    expected_source_ids: ["placeholder-project"]
+    note: 语义：检索证据 → 模型组织回答的流程
+
+  - question: "占位项目涉及哪些技术？"
+    expected_source_ids: ["placeholder-project"]
+    note: 语义+关键词：Python、FastAPI、SQLite、混合检索
+
+  - question: "WenGraph 与工具治理"
+    expected_source_ids: ["profile"]
+    note: 关键词：profile 正文"自研 WenGraph 图运行时（受控 ReAct + 工具治理）"
+
+  - question: "FastAPI 与 SQLite 混合检索"
+    expected_source_ids: ["placeholder-project"]
+    note: 关键词：placeholder 正文技术重点列表
+
+  - question: "你关注哪些工程方向？"
+    expected_source_ids: ["profile"]
+    note: 语义：RAG 全链路、Agent 安全边界、容量控制

@@ -105,18 +105,23 @@ class PersonalRunStore:
                 updated_at=now,
             )
             with self.connection:
-                self.connection.execute("INSERT INTO personal_runs VALUES(?,?,?,?,?,?,?,?,?)", self._values(record))
+                self.connection.execute(
+                    "INSERT INTO personal_runs VALUES(?,?,?,?,?,?,?,?,?)", self._values(record)
+                )
         return record
 
     def get(self, run_id: str) -> PersonalRun | None:
         with self._lock:
-            row = self.connection.execute("SELECT * FROM personal_runs WHERE run_id=?", (run_id,)).fetchone()
+            row = self.connection.execute(
+                "SELECT * FROM personal_runs WHERE run_id=?", (run_id,)
+            ).fetchone()
         return self._from_row(row) if row else None
 
     def list_by_status(self, status: PersonalRunStatus) -> list[PersonalRun]:
         with self._lock:
             rows = self.connection.execute(
-                "SELECT * FROM personal_runs WHERE status=? ORDER BY created_at, run_id", (status.value,)
+                "SELECT * FROM personal_runs WHERE status=? ORDER BY created_at, run_id",
+                (status.value,),
             ).fetchall()
         return [self._from_row(row) for row in rows]
 
@@ -188,12 +193,16 @@ class PersonalRunStore:
         error_message: str | None = None,
     ) -> PersonalRun:
         with self._lock:
-            row = self.connection.execute("SELECT * FROM personal_runs WHERE run_id=?", (run_id,)).fetchone()
+            row = self.connection.execute(
+                "SELECT * FROM personal_runs WHERE run_id=?", (run_id,)
+            ).fetchone()
             if row is None:
                 raise ValueError(f"未找到 Run: {run_id}")
             existing = self._from_row(row)
             now = utc_now()
-            completed_at = now if target in {PersonalRunStatus.COMPLETED, PersonalRunStatus.FAILED} else None
+            completed_at = (
+                now if target in {PersonalRunStatus.COMPLETED, PersonalRunStatus.FAILED} else None
+            )
             updated = existing.model_copy(
                 update={
                     "status": target,
@@ -241,8 +250,12 @@ class PersonalRunStore:
             status=PersonalRunStatus(row["status"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
-            completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
-            answer=AgentAnswer.model_validate_json(row["answer_json"]) if row["answer_json"] else None,
+            completed_at=datetime.fromisoformat(row["completed_at"])
+            if row["completed_at"]
+            else None,
+            answer=AgentAnswer.model_validate_json(row["answer_json"])
+            if row["answer_json"]
+            else None,
             error_message=row["error_message"],
         )
 
@@ -289,7 +302,9 @@ class PersonalRunScheduler:
             asyncio.create_task(self._worker(), name=f"personal-agent-worker-{index}")
             for index in range(self._worker_count)
         ]
-        self._cleanup_task = asyncio.create_task(self._cleanup_loop(), name="personal-agent-cleanup")
+        self._cleanup_task = asyncio.create_task(
+            self._cleanup_loop(), name="personal-agent-cleanup"
+        )
 
     async def stop(self) -> None:
         if self._cleanup_task is not None:
@@ -348,10 +363,12 @@ class PersonalRunScheduler:
                     continue
                 self.store.mark_running(run_id)
                 try:
-                    answer = await self.answerer.answer(record.question, conversation_id=record.conversation_id)
+                    answer = await self.answerer.answer(
+                        record.question, conversation_id=record.conversation_id
+                    )
                 except asyncio.CancelledError:
                     raise
-                except Exception as error:
+                except Exception as error:  # noqa: BLE001 - worker 容错：任何失败都标记为 run failed 供前端展示
                     self.store.mark_failed(run_id, str(error) or type(error).__name__)
                 else:
                     self.store.mark_completed(run_id, answer)

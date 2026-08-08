@@ -51,16 +51,21 @@ class PersonalAgentService:
         result = await GraphExecutor(
             graph,
             State(
-                message=f"用户问题：{question.strip()}\n\n首轮资料检索：\n{evidence}", conversation_id=conversation_id
+                message=f"用户问题：{question.strip()}\n\n首轮资料检索：\n{evidence}",
+                conversation_id=conversation_id,
             ),
             max_steps=24,
             max_tool_calls=4,
         ).run(run_id=run_id, timeout_seconds=90)
         if result.status is not RunStatus.COMPLETED:
-            raise RuntimeError(f"个人 Agent 未完成: {result.status.value}; {result.error_message or '无错误说明'}")
+            raise RuntimeError(
+                f"个人 Agent 未完成: {result.status.value}; {result.error_message or '无错误说明'}"
+            )
         if result.state.message is None:
             raise RuntimeError("个人 Agent 未生成回答")
-        citations_by_id = {match.source.source_id: match.public_citation for match in initial_matches}
+        citations_by_id = {
+            match.source.source_id: match.public_citation for match in initial_matches
+        }
         for tool in tools:
             citations_by_id.update({citation.source_id: citation for citation in tool.citations})
         answer = AgentAnswer(text=result.state.message, citations=list(citations_by_id.values()))
@@ -89,21 +94,17 @@ class PersonalAgentService:
         return answer
 
     def _initial_matches(self, question: str):
-        semantic = [
-            match
-            for match in self.knowledge.search_semantic(question, limit=3)
-            if match.score >= self.minimum_semantic_score
-        ]
-        keywords = self.knowledge.search_keywords(question, limit=3)
-        # 语义命中（已过阈值）优先于 FTS 精确命中：关键词匹配无法区分分数高低，
-        # 若后写覆盖会丢掉语义排序信息。
-        by_chunk = {match.chunk.chunk_id: match for match in [*keywords, *semantic]}
-        return list(by_chunk.values())
+        return self.knowledge.search_hybrid(
+            question,
+            limit=3,
+            minimum_semantic_score=self.minimum_semantic_score,
+        )
 
     @staticmethod
     def _render_initial_evidence(matches) -> str:
         if not matches:
             return "未召回直接相关资料。个人事实必须说明资料未覆盖，不得猜测。"
         return "\n\n".join(
-            f"[来源：{match.source.title} | {match.source.source_id}]\n{match.chunk.content}" for match in matches
+            f"[来源：{match.source.title} | {match.source.source_id}]\n{match.chunk.content}"
+            for match in matches
         )

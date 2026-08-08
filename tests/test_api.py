@@ -74,7 +74,9 @@ def test_topics_endpoint_returns_grouped_questions(tmp_path: Path) -> None:
     assert response.status_code == 200
     body = response.json()
     assert any(group["project"] == "Personal" for group in body)
-    questions = [question for group in body for topic in group["topics"] for question in topic["questions"]]
+    questions = [
+        question for group in body for topic in group["topics"] for question in topic["questions"]
+    ]
     assert "Lin 的知识覆盖哪些主题？" in questions
 
 
@@ -107,8 +109,16 @@ def test_api_rejects_non_canonical_conversation_and_run_ids(tmp_path: Path) -> N
     scheduler = PersonalRunScheduler(store, ImmediateAnswerer(), worker_count=1, max_queue_size=2)
     with TestClient(create_app(scheduler=scheduler, run_store=store)) as client:
         # 非法字符与超长 ID 不应进入存储层（路径穿越由 URL 规范化先拦截为 404）。
-        assert client.post("/api/conversations/bad%40id/messages", json={"question": "hi"}).status_code == 422
-        assert client.post("/api/conversations/" + "x" * 100 + "/messages", json={"question": "hi"}).status_code == 422
+        assert (
+            client.post("/api/conversations/bad%40id/messages", json={"question": "hi"}).status_code
+            == 422
+        )
+        assert (
+            client.post(
+                "/api/conversations/" + "x" * 100 + "/messages", json={"question": "hi"}
+            ).status_code
+            == 422
+        )
         assert client.get("/api/runs/..%2F..%2Fetc%2Fpasswd").status_code == 404
         assert client.get("/api/runs/bad%40run").status_code == 422
         assert client.get("/api/runs/" + "a" * 200).status_code == 422
@@ -119,9 +129,17 @@ def test_api_rate_limits_submissions_per_client(tmp_path: Path) -> None:
     store = PersonalRunStore(tmp_path / "runs.db")
     limiter = RateLimiter(limit=2, window_seconds=60)
     scheduler = PersonalRunScheduler(store, ImmediateAnswerer(), worker_count=1, max_queue_size=10)
-    with TestClient(create_app(scheduler=scheduler, run_store=store, rate_limiter=limiter)) as client:
-        assert client.post("/api/conversations/tab-1/messages", json={"question": "one"}).status_code == 202
-        assert client.post("/api/conversations/tab-2/messages", json={"question": "two"}).status_code == 202
+    with TestClient(
+        create_app(scheduler=scheduler, run_store=store, rate_limiter=limiter)
+    ) as client:
+        assert (
+            client.post("/api/conversations/tab-1/messages", json={"question": "one"}).status_code
+            == 202
+        )
+        assert (
+            client.post("/api/conversations/tab-2/messages", json={"question": "two"}).status_code
+            == 202
+        )
         third = client.post("/api/conversations/tab-3/messages", json={"question": "three"})
         assert third.status_code == 429
         assert "频繁" in third.json()["detail"]
@@ -149,7 +167,9 @@ def test_message_submission_and_run_polling_contract(tmp_path: Path) -> None:
     store = PersonalRunStore(tmp_path / "runs.db")
     scheduler = PersonalRunScheduler(store, ImmediateAnswerer(), worker_count=1, max_queue_size=2)
     with TestClient(create_app(scheduler=scheduler, run_store=store)) as client:
-        response = client.post("/api/conversations/tab-1/messages", json={"question": "介绍 WenGraph"})
+        response = client.post(
+            "/api/conversations/tab-1/messages", json={"question": "介绍 WenGraph"}
+        )
 
         assert response.status_code == 202
         assert response.json()["status"] in {"queued", "running"}
@@ -179,11 +199,23 @@ def test_api_validates_input_and_translates_scheduler_errors(tmp_path: Path) -> 
     store = PersonalRunStore(tmp_path / "runs.db")
     scheduler = PersonalRunScheduler(store, BlockingAnswerer(), worker_count=1, max_queue_size=1)
     with TestClient(create_app(scheduler=scheduler, run_store=store)) as client:
-        assert client.post("/api/conversations/tab-1/messages", json={"question": ""}).status_code == 422
+        assert (
+            client.post("/api/conversations/tab-1/messages", json={"question": ""}).status_code
+            == 422
+        )
         first = client.post("/api/conversations/tab-1/messages", json={"question": "one"})
         assert first.status_code == 202
-        assert client.post("/api/conversations/tab-1/messages", json={"question": "two"}).status_code == 409
-        assert client.post("/api/conversations/tab-2/messages", json={"question": "two"}).status_code == 202
-        assert client.post("/api/conversations/tab-3/messages", json={"question": "three"}).status_code == 429
+        assert (
+            client.post("/api/conversations/tab-1/messages", json={"question": "two"}).status_code
+            == 409
+        )
+        assert (
+            client.post("/api/conversations/tab-2/messages", json={"question": "two"}).status_code
+            == 202
+        )
+        assert (
+            client.post("/api/conversations/tab-3/messages", json={"question": "three"}).status_code
+            == 429
+        )
         assert client.get("/api/runs/missing").status_code == 404
     store.close()

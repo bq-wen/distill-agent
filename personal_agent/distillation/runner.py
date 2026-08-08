@@ -13,10 +13,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from personal_agent.distillation.contracts import RUN_ID_PATTERN, AuditArtifact, DistillFileState, DistillState
+from personal_agent.distillation.contracts import (
+    RUN_ID_PATTERN,
+    AuditArtifact,
+    DistillFileState,
+    DistillState,
+)
 from personal_agent.distillation.graph import build_distillation_graph
 from personal_agent.distillation.nodes import legacy_source_id_for, source_id_for
-from personal_agent.knowledge.embedding import HashEmbeddingProvider, SentenceTransformersEmbeddingProvider
+from personal_agent.knowledge.embedding import (
+    HashEmbeddingProvider,
+    SentenceTransformersEmbeddingProvider,
+)
 from personal_agent.knowledge.retrieval import PersonalKnowledgeService
 from personal_agent.knowledge.store import KnowledgeStore
 from personal_agent.wengraph_runtime import (
@@ -154,7 +162,9 @@ async def _run_pipeline(
     only_files: set[str] | None = None,
     deleted_source_ids: set[str] | None = None,
 ) -> RunResult:
-    executor = _new_executor(ctx, run_id=run_id, only_files=only_files, deleted_source_ids=deleted_source_ids)
+    executor = _new_executor(
+        ctx, run_id=run_id, only_files=only_files, deleted_source_ids=deleted_source_ids
+    )
     result = await executor.run(run_id=run_id, timeout_seconds=1800)
     while result.status is RunStatus.PENDING_APPROVAL:
         assert result.checkpoint is not None
@@ -181,10 +191,14 @@ def _print_pending(ctx: DistillContext, result: RunResult) -> None:
     assert result.checkpoint is not None
     message = result.checkpoint.state.message or "等待审批"
     print(f"\n▶ {message}", file=sys.stderr)
-    audit_ref = next((ref for ref in result.checkpoint.state.artifacts.values() if ref.kind == "audit"), None)
+    audit_ref = next(
+        (ref for ref in result.checkpoint.state.artifacts.values() if ref.kind == "audit"), None
+    )
     if audit_ref is not None:
         try:
-            payload = AuditArtifact.model_validate_json(ctx.artifact_store.get_text(audit_ref.artifact_id))
+            payload = AuditArtifact.model_validate_json(
+                ctx.artifact_store.get_text(audit_ref.artifact_id)
+            )
             for atom in payload.atoms[:5]:
                 preview = atom.content.split("\n", 1)[0]
                 print(f"  · [{atom.kind}] {preview[:80]}", file=sys.stderr)
@@ -249,7 +263,9 @@ def _validate_run_id(run_id: str) -> None:
     """Run ID 会用作 SQLite 主键与 audit 文件名，只允许安全字符。"""
 
     if not re.fullmatch(RUN_ID_PATTERN, run_id):
-        raise ValueError(f"非法 Run ID: {run_id!r}；只能包含字母、数字、-、_，且以字母或数字开头（最长 128 字符）")
+        raise ValueError(
+            f"非法 Run ID: {run_id!r}；只能包含字母、数字、-、_，且以字母或数字开头（最长 128 字符）"
+        )
 
 
 def run_pipeline(
@@ -315,7 +331,9 @@ def _record_indexed_hashes(ctx: DistillContext) -> None:
         if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json"}:
             relative = str(path.relative_to(ctx.input_dir))
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            state.files[relative] = DistillFileState(content_hash=digest, source_id=source_id_for(relative))
+            state.files[relative] = DistillFileState(
+                content_hash=digest, source_id=source_id_for(relative)
+            )
     ctx.save_state(state)
 
 

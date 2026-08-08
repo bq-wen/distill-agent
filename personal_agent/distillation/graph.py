@@ -74,10 +74,18 @@ def build_distillation_graph(
 
     guard = ToolGuard(CapabilityPolicy(), RiskPolicy(ExecutionMode.SUPERVISED))
     guard.capability_policy.register_tool(
-        ToolSpec(name=audit_tool.name, required_capabilities={Capability.WRITE_SANDBOX}, risk_level=RiskLevel.MEDIUM)
+        ToolSpec(
+            name=audit_tool.name,
+            required_capabilities={Capability.WRITE_SANDBOX},
+            risk_level=RiskLevel.MEDIUM,
+        )
     )
     guard.capability_policy.register_tool(
-        ToolSpec(name=index_tool.name, required_capabilities={Capability.DATABASE_WRITE}, risk_level=RiskLevel.HIGH)
+        ToolSpec(
+            name=index_tool.name,
+            required_capabilities={Capability.DATABASE_WRITE},
+            risk_level=RiskLevel.HIGH,
+        )
     )
     guard.capability_policy.grant(audit_gate.name, {Capability.WRITE_SANDBOX})
     guard.capability_policy.grant(indexer.name, {Capability.DATABASE_WRITE})
@@ -122,7 +130,9 @@ def build_distillation_graph(
     graph.add_edge(Edge(indexer, guard_node))
     graph.add_edge(Edge(guard_node, policy_router))
     graph.add_edge(Edge(policy_router, tool_node, condition=PolicyDecision.ALLOW.value))
-    graph.add_edge(Edge(policy_router, approval_end, condition=PolicyDecision.REQUIRE_APPROVAL.value))
+    graph.add_edge(
+        Edge(policy_router, approval_end, condition=PolicyDecision.REQUIRE_APPROVAL.value)
+    )
     graph.add_edge(Edge(policy_router, deny_end, condition=PolicyDecision.DENY.value))
     graph.add_edge(Edge(tool_node, continue_router))
     graph.add_edge(Edge(deny_end, continue_router))
@@ -177,7 +187,9 @@ def _apply_policies(graph: Graph, **nodes: object) -> None:
             StateField.TOOL_REQUESTER,
         },
     )
-    graph.set_read_policy(nodes["indexer"], {StateField.ARTIFACTS, StateField.LAST_TOOL_RESULT, StateField.MESSAGE})
+    graph.set_read_policy(
+        nodes["indexer"], {StateField.ARTIFACTS, StateField.LAST_TOOL_RESULT, StateField.MESSAGE}
+    )
     graph.set_write_policy(
         nodes["indexer"],
         {
@@ -190,21 +202,34 @@ def _apply_policies(graph: Graph, **nodes: object) -> None:
     )
     graph.set_read_policy(
         nodes["guard_node"],
-        {StateField.PENDING_TOOL_REQUEST, StateField.PENDING_TOOL_REQUESTS, StateField.TOOL_REQUESTER},
+        {
+            StateField.PENDING_TOOL_REQUEST,
+            StateField.PENDING_TOOL_REQUESTS,
+            StateField.TOOL_REQUESTER,
+        },
     )
     graph.set_write_policy(nodes["guard_node"], {StateField.POLICY_DECISION})
     graph.set_read_policy(nodes["policy_router"], {StateField.POLICY_DECISION})
     graph.set_write_policy(nodes["policy_router"], set())
-    graph.set_read_policy(nodes["tool_node"], {StateField.PENDING_TOOL_REQUEST, StateField.PENDING_TOOL_REQUESTS})
-    graph.set_write_policy(nodes["tool_node"], {StateField.LAST_TOOL_RESULT, StateField.TOOL_HISTORY})
+    graph.set_read_policy(
+        nodes["tool_node"], {StateField.PENDING_TOOL_REQUEST, StateField.PENDING_TOOL_REQUESTS}
+    )
+    graph.set_write_policy(
+        nodes["tool_node"], {StateField.LAST_TOOL_RESULT, StateField.TOOL_HISTORY}
+    )
     graph.set_read_policy(nodes["approval_end"], set())
     graph.set_write_policy(nodes["approval_end"], {StateField.MESSAGE})
     graph.set_read_policy(
         nodes["deny_end"],
-        {StateField.PENDING_TOOL_REQUEST, StateField.PENDING_TOOL_REQUESTS, StateField.POLICY_DECISION},
+        {
+            StateField.PENDING_TOOL_REQUEST,
+            StateField.PENDING_TOOL_REQUESTS,
+            StateField.POLICY_DECISION,
+        },
     )
     graph.set_write_policy(
-        nodes["deny_end"], {StateField.LAST_TOOL_RESULT, StateField.TOOL_HISTORY, StateField.MESSAGE}
+        nodes["deny_end"],
+        {StateField.LAST_TOOL_RESULT, StateField.TOOL_HISTORY, StateField.MESSAGE},
     )
     graph.set_read_policy(nodes["continue_router"], {StateField.LAST_TOOL_RESULT})
     graph.set_write_policy(nodes["continue_router"], set())

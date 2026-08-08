@@ -41,7 +41,9 @@ class HashEmbeddingProvider(EmbeddingProvider):
             raise ValueError("无法为不含有效 token 的文本生成向量")
         vector = [0.0] * self.dimensions
         for token in tokens:
-            value = int.from_bytes(hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest(), "big")
+            value = int.from_bytes(
+                hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest(), "big"
+            )
             vector[value % self.dimensions] += -1.0 if (value >> 8) & 1 else 1.0
         norm = math.sqrt(sum(value * value for value in vector))
         return [value / norm for value in vector]
@@ -87,9 +89,13 @@ class SentenceTransformersEmbeddingProvider(EmbeddingProvider):
             try:
                 from sentence_transformers import SentenceTransformer
             except ImportError as error:
-                raise RuntimeError("缺少 sentence-transformers；请安装完整应用依赖后再建立本地语义索引") from error
+                raise RuntimeError(
+                    "缺少 sentence-transformers；请安装完整应用依赖后再建立本地语义索引"
+                ) from error
             model = SentenceTransformer(self.model_name, device=self.device)
-            get_dimensions = getattr(model, "get_embedding_dimension", model.get_sentence_embedding_dimension)
+            get_dimensions = getattr(
+                model, "get_embedding_dimension", model.get_sentence_embedding_dimension
+            )
             dimensions = get_dimensions()
             if dimensions is None or dimensions < 1:
                 raise RuntimeError(f"Embedding 模型未返回有效维度: {self.model_name}")

@@ -43,6 +43,10 @@ class RateLimiter:
         """Drop keys whose window has fully expired to bound memory growth."""
 
         now = time.monotonic()
-        expired = [key for key, hits in self._hits.items() if not hits or now - hits[-1] >= self.window_seconds]
+        expired = [
+            key
+            for key, hits in self._hits.items()
+            if not hits or now - hits[-1] >= self.window_seconds
+        ]
         for key in expired:
             del self._hits[key]

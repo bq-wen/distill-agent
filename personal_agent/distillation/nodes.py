@@ -38,10 +38,8 @@ EXTRACTION_PROMPT = """你是个人知识蒸馏器。把用户提供的原始材
 2. 每条原子必须是第一人称陈述（“我做了/我选择/我认为”）、面试问答对（qa_pair）或客观事实（fact）。
 3. qa_pair 的 content 必须包含问题与回答两行，格式：问题：xxx\\n回答：yyy。优先把可复述的经历提炼成面试问答。
 4. 丢弃：情绪化闲聊、问候、表情、无关内容、明显涉他人隐私的信息。
-5. 每条原子填写 kind（statement/qa_pair/fact）、confidence（0-1，依据信息明确度）、
-   source_type（resume/project_readme/git_history/chat_export/notes/manual）。
-6. 只输出 JSON，不要解释，格式：{"atoms": [{"content": "...", "kind": "statement", "confidence": 0.9,
-   "source_type": "notes"}, ...]}"""
+5. 每条原子填写 kind（statement/qa_pair/fact）、confidence（0-1，依据信息明确度）、source_type（resume/project_readme/git_history/chat_export/notes/manual）。
+6. 只输出 JSON，不要解释，格式：{"atoms": [{"content": "...", "kind": "statement", "confidence": 0.9, "source_type": "notes"}, ...]}"""
 
 
 def _manifest_ref(state: StateView, kind: str) -> str | None:
@@ -56,11 +54,15 @@ def _load_manifest(artifact_store, state: StateView, kind: str) -> list[SourceFi
     ref_id = _manifest_ref(state, kind)
     if ref_id is None:
         raise ValueError(f"状态中缺少 {kind} 清单")
-    return [SourceFile.model_validate(entry) for entry in json.loads(artifact_store.get_text(ref_id))]
+    return [
+        SourceFile.model_validate(entry) for entry in json.loads(artifact_store.get_text(ref_id))
+    ]
 
 
 def _put_json(artifact_store, kind: str, value, *, summary: str):
-    return artifact_store.put_text(kind, json.dumps(value, ensure_ascii=False, default=str), summary=summary)
+    return artifact_store.put_text(
+        kind, json.dumps(value, ensure_ascii=False, default=str), summary=summary
+    )
 
 
 def _clean_text(raw: str) -> str:
@@ -130,7 +132,9 @@ class SourceLoaderNode(Node):
             for path in self.input_dir.rglob("*")
             if path.is_file()
             and path.suffix.lower() in {".md", ".txt", ".json"}
-            and (self.only_files is None or str(path.relative_to(self.input_dir)) in self.only_files)
+            and (
+                self.only_files is None or str(path.relative_to(self.input_dir)) in self.only_files
+            )
         )
         if not files and self.only_files is None:
             raise ValueError("增量模式下没有内容变化的文件，无需蒸馏")
@@ -152,7 +156,10 @@ class SourceLoaderNode(Node):
                 )
             )
         manifest_ref = _put_json(
-            self.artifact_store, "manifest", [entry.model_dump() for entry in entries], summary="源文件清单"
+            self.artifact_store,
+            "manifest",
+            [entry.model_dump() for entry in entries],
+            summary="源文件清单",
         )
         refs[manifest_ref.artifact_id] = manifest_ref
         return StatePatch(artifacts=refs, message=f"载入 {len(files)} 个源文件")
@@ -175,7 +182,10 @@ class CleanerNode(Node):
             refs[ref.artifact_id] = ref  # type: ignore[assignment]
             cleaned.append(entry.model_copy(update={"clean_artifact_id": ref.artifact_id}))
         manifest_ref = _put_json(
-            self.artifact_store, "clean_manifest", [entry.model_dump() for entry in cleaned], summary="清洗后清单"
+            self.artifact_store,
+            "clean_manifest",
+            [entry.model_dump() for entry in cleaned],
+            summary="清洗后清单",
         )
         refs[manifest_ref.artifact_id] = manifest_ref  # type: ignore[assignment]
         return StatePatch(artifacts=refs, message=f"清洗 {len(cleaned)} 个源文件")
@@ -268,7 +278,10 @@ class StructurerNode(Node):
         atoms_ref = _manifest_ref(state, "atoms")
         if atoms_ref is None:
             raise ValueError("缺少知识原子产物")
-        atoms = [KnowledgeAtom.model_validate(item) for item in json.loads(self.artifact_store.get_text(atoms_ref))]
+        atoms = [
+            KnowledgeAtom.model_validate(item)
+            for item in json.loads(self.artifact_store.get_text(atoms_ref))
+        ]
         if not atoms:
             return StatePatch(message="没有可结构化的知识原子，流程结束")
         documents = self._build_documents(atoms)
@@ -297,7 +310,9 @@ class StructurerNode(Node):
             body: list[str] = []
             questions: list[str] = []
             for atom in file_atoms:
-                heading = {"statement": "经历与观点", "qa_pair": "面试问答", "fact": "事实"}[atom.kind]
+                heading = {"statement": "经历与观点", "qa_pair": "面试问答", "fact": "事实"}[
+                    atom.kind
+                ]
                 body.append(f"## {heading}\n\n{atom.content}")
                 if atom.kind == "qa_pair" and len(questions) < 12:
                     question = atom.content.split("\n", 1)[0].removeprefix("问题：").strip()
@@ -312,7 +327,10 @@ class StructurerNode(Node):
                     "visibility: private",
                     f"public_summary: {public_summary}",
                     *(
-                        ["public_questions:" + "".join(f"\n  - {question}" for question in questions)]
+                        [
+                            "public_questions:"
+                            + "".join(f"\n  - {question}" for question in questions)
+                        ]
                         if questions
                         else []
                     ),
@@ -357,14 +375,18 @@ class AuditGateNode(Node):
 
     name = "audit_gate_node"
 
-    def __init__(self, artifact_store, run_id: str, *, deleted_source_ids: set[str] | None = None) -> None:
+    def __init__(
+        self, artifact_store, run_id: str, *, deleted_source_ids: set[str] | None = None
+    ) -> None:
         self.artifact_store = artifact_store
         self.run_id = run_id
         self.deleted_source_ids = sorted(deleted_source_ids or set())
 
     async def execute(self, state: StateView) -> StatePatch:
         atoms = _load_artifact_list(self.artifact_store, state, "atoms", KnowledgeAtom)
-        documents = _load_artifact_list(self.artifact_store, state, "documents", DistillDocument, required=False)
+        documents = _load_artifact_list(
+            self.artifact_store, state, "documents", DistillDocument, required=False
+        )
         payload = AuditArtifact(
             run_id=self.run_id,
             created_at=datetime.now(UTC),
@@ -399,14 +421,18 @@ class IndexerNode(Node):
         self.deleted_source_ids = sorted(deleted_source_ids or set())
 
     async def execute(self, state: StateView) -> StatePatch:
-        documents = _load_artifact_list(self.artifact_store, state, "documents", DistillDocument, required=False)
+        documents = _load_artifact_list(
+            self.artifact_store, state, "documents", DistillDocument, required=False
+        )
         if not documents and not self.deleted_source_ids:
             return StatePatch(message="没有可索引的文档，流程结束")
         request = ToolRequest(
             call_id=str(uuid4()),
             tool_name="index_documents",
             arguments={
-                "documents_json": json.dumps([doc.model_dump() for doc in documents], ensure_ascii=False),
+                "documents_json": json.dumps(
+                    [doc.model_dump() for doc in documents], ensure_ascii=False
+                ),
                 "deleted_source_ids": self.deleted_source_ids,
             },
         )
@@ -417,7 +443,9 @@ class IndexerNode(Node):
         )
 
 
-def _load_artifact_list(artifact_store, state: StateView, kind: str, model, *, required: bool = True) -> list:
+def _load_artifact_list(
+    artifact_store, state: StateView, kind: str, model, *, required: bool = True
+) -> list:
     ref_id = _manifest_ref(state, kind)
     if ref_id is None:
         if required:

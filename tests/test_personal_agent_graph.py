@@ -45,7 +45,9 @@ WenGraph 使用 StatePatch、ToolGuard 和可恢复执行来治理 Agent 工具�
     return service
 
 
-def test_personal_agent_forces_initial_evidence_and_allows_guarded_second_search(tmp_path: Path) -> None:
+def test_personal_agent_forces_initial_evidence_and_allows_guarded_second_search(
+    tmp_path: Path,
+) -> None:
     model = ScriptedChatModel(
         [
             ModelResponse(
@@ -74,9 +76,9 @@ def test_personal_agent_tells_model_when_personal_evidence_is_missing(tmp_path: 
     model = ScriptedChatModel([ModelResponse(text="这是一般技术说明，不代表我的个人经历。")])
 
     asyncio.run(
-        PersonalAgentService(_knowledge_service(tmp_path), model, minimum_semantic_score=0.95).answer(
-            "你上一家公司为什么离职？", conversation_id="tab-1"
-        )
+        PersonalAgentService(
+            _knowledge_service(tmp_path), model, minimum_semantic_score=0.95
+        ).answer("你上一家公司为什么离职？", conversation_id="tab-1")
     )
 
     assert "个人事实必须说明资料未覆盖" in model.messages[0][0][-1].content
@@ -90,7 +92,9 @@ def test_personal_agent_reuses_persisted_tab_conversation_history(tmp_path: Path
             ModelResponse(text="第二轮回答"),
         ]
     )
-    service = PersonalAgentService(_knowledge_service(tmp_path), model, conversation_store=conversation_store)
+    service = PersonalAgentService(
+        _knowledge_service(tmp_path), model, conversation_store=conversation_store
+    )
     try:
         asyncio.run(service.answer("介绍 WenGraph", conversation_id="tab-1"))
         asyncio.run(service.answer("它如何控制工具？", conversation_id="tab-1"))

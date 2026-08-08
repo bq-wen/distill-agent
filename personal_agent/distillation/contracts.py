@@ -92,4 +92,6 @@ class DistillState(BaseModel):
 
     def is_unchanged(self, path: str, content_hash: str) -> bool:
         entry = self.files.get(path)
-        return entry is not None and entry.source_id is not None and entry.content_hash == content_hash
+        return (
+            entry is not None and entry.source_id is not None and entry.content_hash == content_hash
+        )

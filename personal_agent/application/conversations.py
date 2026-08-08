@@ -92,7 +92,9 @@ class SQLiteConversationStore(ConversationStore):
 
     def count_events(self) -> int:
         with self._lock:
-            row = self.connection.execute("SELECT COUNT(*) AS n FROM conversation_events").fetchone()
+            row = self.connection.execute(
+                "SELECT COUNT(*) AS n FROM conversation_events"
+            ).fetchone()
         return int(row["n"]) if row else 0
 
     def cap_active_conversations(self, limit: int) -> int:

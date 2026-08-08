@@ -27,7 +27,7 @@ from storage.sqlite import (
     SQLiteToolExecutionStore,
 )
 from tools import ToolRequest
-from wengraph import (  # noqa: E402
+from wengraph import (
     AgentFinishNode,
     AgentRouterNode,
     ApprovalEndNode,

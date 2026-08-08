@@ -118,7 +118,23 @@ topics: [architecture]           # 可选：主题标签
 # 正文（私有内容仅供 Agent 检索，不出现在任何 API 字段）
 ```
 
-## 蒸馏链路与审批
+`source_id` 必须稳定且只包含小写字母、数字、`-` 或 `_`。生产索引使用本地 Sentence Transformers；`--hash-embedding` 仅供无模型下载的测试，不适用于生产检索。
+
+## Retrieval Evaluation（检索评估）
+
+量化混合检索能力（recall@k / precision@k / MRR），评估与在线服务走同一条 `search_hybrid` 路径：
+
+```bash
+python3.12 -m personal_agent.knowledge.eval \
+  --database data/knowledge.db --cases eval_cases/example.yaml \
+  --strategy all --min-score 0.35 --report data/eval-report.json
+```
+
+`eval_cases/example.yaml` 是评估集格式（问题 → 期望命中的 `source_id`），扩充真实资料后同步扩展并重跑。
+
+## Distillation Pipeline（蒸馏链路）
+
+后台知识处理流水线：把**原始资料目录**自动加工成知识库。同一条 WenGraph 图运行时，蒸馏图运行在 `SUPERVISED` 模式——写审计产物（MEDIUM 风险）与写知识库（HIGH 风险）两个工具在 ToolGuard 处强制 `REQUIRE_APPROVAL`，未批准的内容不会进入知识库。
 
 ```bash
 # 交互式运行（写闸门处暂停等批准）
@@ -127,14 +143,19 @@ topics: [architecture]           # 可选：主题标签
 # 全自动（演示/CI）：直接批准所有闸门
 .venv/bin/python -m personal_agent.distillation.cli run --input <目录> --database data/knowledge.db --yes
 
-# 增量：只处理内容变化的文件（SHA-256 与 data/distill/state.json 比对）
-.venv/bin/python -m personal_agent.distillation.cli run --input <目录> --database data/knowledge.db --incremental
-
-# 非 TTY 环境：run 停在第一个闸门并打印 run_id，随后单独批准/驳回
-.venv/bin/python -m personal_agent.distillation.cli approve --run distill-xxxx --database data/knowledge.db [--reject]
+# 非 TTY 环境：run 停在第一个审批闸门并打印 run_id，随后可单独批准/驳回。
+# approve 每次只批准一个闸门（写审计 → 再 approve → 写库），重复执行直到 completed
+python3.12 -m personal_agent.distillation.cli approve --run distill-xxxx --database data/knowledge.db
+python3.12 -m personal_agent.distillation.cli approve --run distill-xxxx --database data/knowledge.db --reject
 ```
 
-产物与边界：审计落在 `data/distill/audit/<run_id>.json`（完整可回溯）；未批准的内容不会进入知识库；LLM 提炼的 PII 过滤是提示词级软约束，公开部署前请人工复核审计产物。
+流水线：`SourceLoader → Cleaner → Extractor(LLM) → Structurer → AuditGate → Indexer`。输入支持 `.md/.txt/.json`；LLM 提炼产物为可溯源的知识原子（`content/kind/confidence/source_file`）；审核产物落在 `data/distill/audit/<run_id>.json`，增量哈希记录在 `data/distill/state.json`（每个文件记录 `content_hash` 与它生成的 `source_id`，兼容旧版纯哈希 state 自动迁移）。生产检索仍用本地 Sentence Transformers，`--hash-embedding` 仅供测试。
+
+增量模式（`--incremental`）额外处理删除与改名：已删除的输入文件、以及改名后旧 `source_id` 对应的知识来源，会通过受审批保护的 `index_documents` 工具一并清理，保证知识库与资料目录一致。蒸馏产物的 `source_id` 是**不透明哈希**（`distilled-<sha256>`），title/summary 不暴露原始文件路径。
+
+## Profile 身份文档
+
+`knowledge/profile.md` 是数字分身的身份来源（front matter 带 `profile: true`，`source_id` 固定为 `profile`）。姓名、monogram、简介、GitHub、覆盖主题与推荐问题全部由此驱动；未载入时回落中性默认身份，页面不写死任何个人内容。
 
 ## Docker Deployment
 
@@ -234,3 +255,5 @@ cd frontend && npm run lint && npm run build   # 前端
 ## License
 
 待定（TBD）——准备开源时确定。
+
+CI（`.github/workflows/ci.yml`）：push 到 `main` 或 PR 时自动跑 后端 ruff + pytest + mypy 与 前端 eslint + tsc + build。
