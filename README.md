@@ -4,7 +4,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/bq-wen/distill-agent/ci.yml?branch=main&label=CI)](https://github.com/bq-wen/distill-agent/actions)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![License](https://img.shields.io/badge/License-TBD-lightgrey)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 **Distill Agent** 是一个"资料 → 知识库 → AI 分身"的通用流水线模板：给任何人（你自己、候选人、专家）一份原始资料（访谈、聊天记录、简历、README），蒸馏链路自动提炼成可溯源的知识原子并写入本地知识库；访客与在线数字分身对话时，分身只在经过治理的只读检索边界内作答，回答自带引用卡片。
 
@@ -23,7 +23,7 @@
 - **本地混合检索**：Sentence Transformers 语义检索 + SQLite FTS5 关键词检索，无需外部向量库。
 - **安全引用合同**：引用卡片仅由审核过的公开元数据（`public_summary`/`public_url`）构成；原始 Markdown、本地路径、内部结构不出现在任何 API 字段。
 - **数据驱动身份**：姓名、简介、覆盖主题、推荐问题全部来自你的身份文档（`profile: true`，见下方示例），前端纯渲染、零硬编码。
-- **无登录、轻部署**：标签页会话（`sessionStorage`）+ 24 小时临时记忆；单进程、SQLite、Docker Compose 即可上线。
+- **无登录、轻部署**：标签页会话（`sessionStorage`）+ 1 小时临时记忆；单进程、SQLite、Docker Compose 即可上线。
 
 ## Architecture
 
@@ -178,6 +178,7 @@ docker compose up -d
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
 | `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` | - | OpenAI-compatible 聊天模型 |
+| `OPENAI_TIMEOUT` | `120` | LLM 请求超时（秒，推理模型可能较慢） |
 | `PERSONAL_AGENT_EMBEDDING_MODEL` | `BAAI/bge-small-zh-v1.5` | 语义检索模型 |
 | `PERSONAL_AGENT_EMBEDDING_DEVICE` | `cpu` | 模型设备 |
 | `PERSONAL_AGENT_DATA_DIR` | `data` | SQLite 与蒸馏产物目录 |
@@ -206,7 +207,7 @@ docker compose up -d
 │   └── placeholder-project.md # 占位项目资料
 ├── vendor/wengraph/           # 固定版本图运行时子模块
 ├── deploy/                    # Nginx / HTTPS 部署模板
-├── tests/                     # pytest（45+，含蒸馏审批跨进程恢复）
+├── tests/                     # pytest（64+，含蒸馏审批跨进程恢复）
 ├── Dockerfile / compose.yaml  # 容器化
 └── .github/workflows/ci.yml   # CI：ruff + pytest + 前端 lint/build
 ```
@@ -216,8 +217,8 @@ docker compose up -d
 - [x] 数据驱动身份与主题（profile/topics API）
 - [x] 蒸馏链路 v1（SUPERVISED 审批 + 审计 + 增量）
 - [x] 容器化与 CI
+- [x] 检索评估集（recall@k / precision@k / MRR）
 - [ ] 流式输出（SSE）替代轮询
-- [ ] 检索评估集（recall@k）与质量报告
 - [ ] 蒸馏管理界面（原子级审批、差异对比）
 - [ ] 微信/语雀等聊天导出解析器（蒸馏输入 v2）
 - [ ] 共享调度层（Redis 队列）支持多实例
@@ -231,7 +232,7 @@ A: 重点是治理叙事：不是"能聊就行"，而是知识从"原始资料"�
 A: 提炼是提示词级约束 + **强制人工审批**（写库前必须批准，产物可回滚）；审计产物保留每个原子的来源文件，错误可溯源到原始段落。
 
 **Q: 前端没有测试？**
-A: 前端目前依赖 lint + 类型检查 + 构建；核心逻辑在后端（45+ pytest 覆盖，含审批暂停、驳回不写库、跨进程恢复）。
+A: 前端目前依赖 lint + 类型检查 + 构建；核心逻辑在后端（64+ pytest 覆盖，含审批暂停、驳回不写库、跨进程恢复）。
 
 **Q: vendor/wengraph 子模块拉不下来？**
 A: 子模块 URL 使用 HTTPS（`https://github.com/bq-wen/WenGraph.git`），WenGraph 是公开仓库，`git clone --recurse-submodules` 即可；固定 commit，应用层只通过 `personal_agent/wengraph_runtime.py` 导入。
@@ -245,15 +246,15 @@ A: 子模块 URL 使用 HTTPS（`https://github.com/bq-wen/WenGraph.git`），We
 ## Verification
 
 ```bash
-.venv/bin/ruff check personal_agent tests      # lint
-.venv/bin/mypy personal_agent                  # 类型检查
-.venv/bin/python -m pytest -q                  # 45+ tests
+.venv/bin/ruff check .                  # lint（ruff.toml 配置）
+.venv/bin/ruff format --check .         # 格式
+.venv/bin/mypy personal_agent           # 类型检查
+.venv/bin/python -m pytest -q           # 64+ tests
 cd frontend && npm run lint && npm run build   # 前端
-.venv/bin/pre-commit run --all-files           # pre-commit
 ```
+
+CI（`.github/workflows/ci.yml`）：push 到 `main` 或 PR 时自动跑 后端 ruff + format + mypy + pytest 与 前端 eslint + build + Docker 镜像构建。
 
 ## License
 
-待定（TBD）——准备开源时确定。
-
-CI（`.github/workflows/ci.yml`）：push 到 `main` 或 PR 时自动跑 后端 ruff + pytest + mypy 与 前端 eslint + tsc + build。
+[MIT](LICENSE) — 自由使用、修改、商用，保留版权声明即可。

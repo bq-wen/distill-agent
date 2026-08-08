@@ -1,5 +1,6 @@
 """Production dependency composition. HTTP handlers remain in ``app.py``."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -48,7 +49,14 @@ def build_resources(settings: ApplicationSettings) -> ProductionResources:
     run_store = PersonalRunStore(settings.runs_database)
     quota_store = TokenQuotaStore(settings.quota_database)
     model = QuotaChatModel(
-        OpenAIChatModel(OpenAIChatConfig.from_environment()),
+        OpenAIChatModel(
+            OpenAIChatConfig(
+                base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+                api_key=os.environ.get("OPENAI_API_KEY", ""),
+                model=os.environ.get("OPENAI_MODEL", "gpt-4.1-mini"),
+                timeout=float(os.environ.get("OPENAI_TIMEOUT", "120")),
+            )
+        ),
         quota_store,
         daily_budget=settings.daily_token_budget,
     )

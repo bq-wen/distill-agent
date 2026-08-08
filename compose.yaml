@@ -9,10 +9,15 @@ services:
       PERSONAL_AGENT_DATA_DIR: /app/data
       HF_HOME: /app/models
     volumes:
-      - ./data:/app/data
+      # Named volume: Docker manages ownership for the container's appuser
+      # (uid 10001). A bind mount (./data:/app/data) would be owned by the
+      # host user and break SQLite writes — use chown 10001:10001 if you
+      # really need a bind mount.
+      - data:/app/data
       - ./knowledge:/app/knowledge:ro
       - model-cache:/app/models
     restart: unless-stopped
 
 volumes:
+  data:
   model-cache:
