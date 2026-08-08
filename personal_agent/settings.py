@@ -13,6 +13,13 @@ def _positive_int(name: str, default: int) -> int:
     return value
 
 
+def _positive_float(name: str, default: float) -> float:
+    value = float(os.environ.get(name, str(default)))
+    if value <= 0:
+        raise ValueError(f"{name} 必须为正数")
+    return value
+
+
 def _score(name: str, default: float) -> float:
     value = float(os.environ.get(name, str(default)))
     if not -1 <= value <= 1:
@@ -43,7 +50,7 @@ class ApplicationSettings:
     @classmethod
     def from_environment(cls) -> "ApplicationSettings":
         data_directory = Path(os.environ.get("PERSONAL_AGENT_DATA_DIR", "data"))
-        ttl_hours = _positive_int("PERSONAL_AGENT_CONVERSATION_TTL_HOURS", 1)
+        ttl_hours = _positive_float("PERSONAL_AGENT_CONVERSATION_TTL_HOURS", 0.5)
         embedding_device = os.environ.get("PERSONAL_AGENT_EMBEDDING_DEVICE", "cpu").strip() or None
         embedding_model = os.environ.get(
             "PERSONAL_AGENT_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5"
@@ -69,13 +76,13 @@ class ApplicationSettings:
             embedding_model=embedding_model,
             embedding_device=embedding_device,
             queue_workers=_positive_int("PERSONAL_AGENT_QUEUE_WORKERS", 2),
-            queue_size=_positive_int("PERSONAL_AGENT_QUEUE_SIZE", 20),
+            queue_size=_positive_int("PERSONAL_AGENT_QUEUE_SIZE", 10),
             conversation_ttl=timedelta(hours=ttl_hours),
             minimum_semantic_score=_score("PERSONAL_AGENT_MINIMUM_SEMANTIC_SCORE", 0.35),
-            rate_limit_per_minute=_positive_int("PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE", 30),
-            daily_token_budget=_positive_int("PERSONAL_AGENT_DAILY_TOKEN_BUDGET", 20_000),
-            max_active_conversations=_positive_int("PERSONAL_AGENT_MAX_ACTIVE_CONVERSATIONS", 100),
+            rate_limit_per_minute=_positive_int("PERSONAL_AGENT_RATE_LIMIT_PER_MINUTE", 10),
+            daily_token_budget=_positive_int("PERSONAL_AGENT_DAILY_TOKEN_BUDGET", 300_000),
+            max_active_conversations=_positive_int("PERSONAL_AGENT_MAX_ACTIVE_CONVERSATIONS", 15),
             max_events_per_conversation=_positive_int(
-                "PERSONAL_AGENT_MAX_EVENTS_PER_CONVERSATION", 50
+                "PERSONAL_AGENT_MAX_EVENTS_PER_CONVERSATION", 25
             ),
         )
