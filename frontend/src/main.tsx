@@ -81,6 +81,11 @@ const fallbackQuestions = [
   "你如何保证回答不编造？",
 ];
 const sessionKey = "distill-agent-conversation-id";
+const apiPrefix = window.location.pathname.startsWith("/agent") ? "/agent" : "";
+
+function apiUrl(url: string) {
+  return apiPrefix + url;
+}
 
 function conversationId() {
   const current = sessionStorage.getItem(sessionKey);
@@ -113,7 +118,7 @@ function collectQuestions(
   return result;
 }
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options);
+  const response = await fetch(apiUrl(url), options);
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as {
       detail?: string;
@@ -285,13 +290,13 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    void fetch("/api/profile")
+    void fetch(apiUrl("/api/profile"))
       .then((response) => (response.ok ? response.json() : null))
       .then((body: Profile | null) => {
         if (body) setProfile(body);
       })
       .catch(() => undefined);
-    void fetch("/api/topics")
+    void fetch(apiUrl("/api/topics"))
       .then((response) => (response.ok ? response.json() : []))
       .then((groups: TopicGroup[]) => {
         setTopics(groups);

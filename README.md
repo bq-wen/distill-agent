@@ -167,9 +167,9 @@ docker compose run --rm distill-agent \
 docker compose up -d
 ```
 
-访问 `http://localhost:8000`。`./data` 持久化 SQLite，`./knowledge` 只读挂载资料源，模型缓存存 Docker volume。
+访问 `http://localhost:8000`。`./data` 持久化 SQLite，`./knowledge` 只读挂载资料源。
 
-> **国内服务器注意**：首次启动需下载 embedding 模型（默认 `BAAI/bge-small-zh-v1.5`）。请在 `.env` 设置 `HF_ENDPOINT=https://hf-mirror.com`（已在 `.env.example` 注释）；生产镜像建议构建时预下载模型（`HF_HUB_OFFLINE=1` + 构建阶段 RUN）。
+发布 Dockerfile 使用 CPU-only Torch，并将 `BAAI/bge-small-zh-v1.5` 模型缓存校验后写入镜像的 `/app/models/bge-small-zh-v1.5`；运行时启用 Hugging Face 离线模式，因此启动不需要外网。构建机需要准备同名模型缓存（本项目发布构建使用 `models/bge-small-zh-v1.5`，该目录由发布脚本从本机 Hugging Face cache 准备，不提交到 Git）。若更换模型，先将模型目录放入镜像并设置 `PERSONAL_AGENT_EMBEDDING_MODEL` 为容器内路径。
 
 生产上线（域名 + HTTPS + Nginx 反代）的配置模板见 `deploy/`（Nginx 反代、Let's Encrypt、systemd/compose 说明），并注意 Security Notes 中的单 worker 约束。
 
